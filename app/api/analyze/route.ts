@@ -1,15 +1,17 @@
-// app/api/analyze/route.ts – Groq AI (free) + local fallback
 import { NextResponse } from 'next/server';
 import Groq from 'groq-sdk';
+
+// ✅ CACHE (yahan add kiya)
+const cache = new Map();
 
 // Initialize Groq client
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || '',
 });
 
-// ---------- Your existing medicine database (fallback) ----------
+// ---------- Your existing medicine database ----------
 const medicineDatabase: Record<string, any> = {
-  headache: { /* ... keep all your existing data ... */ },
+  headache: { /* ... */ },
   fever: { /* ... */ },
   allergy: { /* ... */ },
   cold: { /* ... */ },
@@ -22,7 +24,7 @@ const medicineDatabase: Record<string, any> = {
   default: { /* ... */ }
 };
 
-// Your existing detectCategory function (unchanged)
+// detectCategory (same)
 function detectCategory(query: string): string {
   const q = query.toLowerCase();
   if (q.includes("headache") || q.includes("migraine")) return "headache";
@@ -42,75 +44,74 @@ function detectCategory(query: string): string {
 export async function POST(req: Request) {
   try {
     const { query } = await req.json();
+
     if (!query || query.trim() === "") {
       return NextResponse.json({ error: "Query is empty" }, { status: 400 });
     }
 
-    // ---- Try Groq AI first (if API key exists) ----
+    // ✅ CACHE CHECK (yahan add kiya)
+    if (cache.has(query)) {
+      console.log("⚡ Cache hit");
+      return NextResponse.json(cache.get(query));
+    }
+
+    // ---- Try Groq AI first ----
     if (process.env.GROQ_API_KEY) {
       try {
-        const prompt = `
-You are a helpful pharmacy assistant. Recommend 3 over‑the‑counter (OTC) medicines for the user's condition.
-
-User query: "${query}"
-
-Return ONLY valid JSON (no markdown, no extra text) in this exact format:
-{
-  "summary": "brief, helpful summary of the condition and approach",
-  "medicines": [
-    {
-      "id": 1,
-      "name": "Medicine Name + Dosage",
-      "type": "Category (e.g. Analgesic, Antihistamine)",
-      "emoji": "💊",
-      "description": "2‑sentence explanation of why this helps",
-      "tags": ["tag1", "tag2", "tag3"],
-      "price": 45,
-      "recommended": true,
-      "drugName": "generic name"
-    }
-  ]
-}
-
-Rules:
-- First medicine must have "recommended": true, others false.
-- Use realistic OTC medicines available in India.
-- Prices in INR between ₹20 and ₹300.
-- Be safe and do not recommend prescription drugs.
-`;
+        const prompt = `...same as your prompt...`;
 
         const completion = await groq.chat.completions.create({
           messages: [{ role: "user", content: prompt }],
-          model: "llama-3.3-70b-versatile", // free, powerful model
+          model: "llama-3.3-70b-versatile",
           temperature: 0.7,
           max_tokens: 1000,
         });
 
         const aiText = completion.choices[0]?.message?.content || "";
-        // Remove any markdown code fences
         const cleanJson = aiText.replace(/```json\s*|\s*```/g, '').trim();
-        const aiResult = JSON.parse(cleanJson);
 
-        // Validate structure
-        if (aiResult.summary && Array.isArray(aiResult.medicines) && aiResult.medicines.length > 0) {
-          // Assign sequential ids
-          aiResult.medicines = aiResult.medicines.map((med: any, idx: number) => ({ ...med, id: idx + 1 }));
+        let aiResult;
+
+        try {
+          aiResult = JSON.parse(cleanJson);
+        } catch {
+          throw new Error("Invalid JSON from AI");
+        }
+
+        if (aiResult.summary && Array.isArray(aiResult.medicines)) {
+          aiResult.medicines = aiResult.medicines.map((med: any, idx: number) => ({
+            ...med,
+            id: idx + 1
+          }));
+
+          // ✅ CACHE SAVE (AI result)
+          cache.set(query, aiResult);
+
           return NextResponse.json(aiResult);
         }
+
       } catch (aiError) {
-        console.error("Groq AI error, falling back to local DB:", aiError);
-        // Fall through to local database
+        console.error("Groq AI error, fallback:", aiError);
       }
     }
 
-    // ---- Fallback: local medicine database ----
+    // ---- Fallback: local DB ----
     const category = detectCategory(query);
     const data = medicineDatabase[category] || medicineDatabase.default;
-    const medicines = data.medicines.map((med: any, idx: number) => ({ ...med, id: idx + 1 }));
-    return NextResponse.json({
+
+    const response = {
       summary: data.summary,
-      medicines: medicines,
-    });
+      medicines: data.medicines.map((med: any, idx: number) => ({
+        ...med,
+        id: idx + 1
+      }))
+    };
+
+    // ✅ CACHE SAVE (fallback result)
+    cache.set(query, response);
+
+    return NextResponse.json(response);
+
   } catch (error) {
     console.error("Fatal error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
