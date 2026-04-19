@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { SignInButton, UserButton } from "@clerk/nextjs";
+import { SignInButton, UserButton, useAuth } from '@clerk/nextjs';
+import Link from 'next/link';
 
-<div className="flex justify-end gap-4 p-4">
-  <SignInButton />
-  <UserButton />
-</div>
+
 
 // ========== Web Speech API Type Declarations ==========
 interface SpeechRecognitionEvent extends Event {
@@ -329,6 +327,10 @@ export default function MedAI() {
 
   const recognitionRef = useRef<any>(null);
 
+  const { isSignedIn } = useAuth();
+
+
+
   // Load Razorpay SDK
   useEffect(() => {
     const script = document.createElement("script");
@@ -414,80 +416,125 @@ export default function MedAI() {
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
 
   const handlePayment = async () => {
-    if (cart.length === 0) {
-      alert("Your cart is empty!");
-      return;
+  if (cart.length === 0) {
+    alert("Your cart is empty!");
+    return;
+  }
+
+  if (!address.name || !address.phone) {
+    alert("Please fill in your name and phone number.");
+    setCheckoutStep(1);
+    return;
+  }
+
+  if (!window.Razorpay) {
+    alert("Payment system loading. Please wait and try again.");
+    return;
+  }
+
+  setIsProcessingPayment(true);
+  try {
+    const totalAmount = Math.round((cartTotal + 4.99) * 100); // Convert to paise
+    const res = await fetch("/api/create_order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: totalAmount }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to create order");
     }
 
-    if (!address.name || !address.phone) {
-      alert("Please fill in your name and phone number.");
-      setCheckoutStep(1);
-      return;
-    }
+    const order = await res.json();
+    if (!order.id) throw new Error("No order ID received");
 
-    if (!window.Razorpay) {
-      alert("Payment system loading. Please wait and try again.");
-      return;
-    }
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_YourTestKeyHere",
+      amount: order.amount,
+      currency: "INR",
+      name: "MedAI Pharmacy",
+      description: `Medicine Order - ${cart.length} items`,
+      order_id: order.id,
+      handler: async (response: any) => {
+        console.log("Payment Success:", response);
+        
+        // ✅ AFTER PAYMENT SUCCESS - Save order to Supabase
+        try {
+          const orderResponse = await fetch("/api/create-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              items: cart.map(item => ({
+                name: item.name,
+                price: item.price,
+                qty: item.qty
+              })),
+              total: cartTotal + 4.99,
+              shippingAddress: `${address.line1}, ${address.city}, ${address.zip}`,
+              customerName: address.name,
+              customerEmail: address.email || "customer@medai.com",
+              customerPhone: address.phone,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id
+            }),
+          });
 
-    setIsProcessingPayment(true);
-    try {
-      const totalAmount = Math.round((cartTotal + 4.99) * 100);
-      const res = await fetch("/api/create_order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: totalAmount }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create order");
-      }
-
-      const order = await res.json();
-      if (!order.id) throw new Error("No order ID received");
-
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_YourTestKeyHere",
-        amount: order.amount,
-        currency: "INR",
-        name: "MedAI Pharmacy",
-        description: `Medicine Order - ${cart.length} items`,
-        order_id: order.id,
-        handler: (response: any) => {
-          console.log("Payment Success:", response);
-          alert(`Payment Successful! 🎉\nPayment ID: ${response.razorpay_payment_id}`);
+          const orderData = await orderResponse.json();
+          
+          if (orderResponse.ok) {
+            alert(`Payment Successful! 🎉\nOrder ID: ${orderData.orderId?.slice(0, 8)}\nPayment ID: ${response.razorpay_payment_id}`);
+            // Clear cart and show success
+            setCart([]);
+            setAddedIds(new Set());
+            setIsProcessingPayment(false);
+            setCheckoutStep(3);
+          } else {
+            alert(`Payment succeeded but order could not be saved. Please contact support.\nPayment ID: ${response.razorpay_payment_id}`);
+            setCart([]);
+            setAddedIds(new Set());
+            setCheckoutStep(3);
+          }
+        } catch (saveError) {
+          console.error("Error saving order:", saveError);
+          alert(`Payment succeeded but order saving failed. Please contact support.\nPayment ID: ${response.razorpay_payment_id}`);
           setCart([]);
           setAddedIds(new Set());
-          setIsProcessingPayment(false);
           setCheckoutStep(3);
-        },
-        prefill: {
-          name: address.name,
-          email: address.email || "customer@medai.com",
-          contact: address.phone,
-        },
-        notes: {
-          delivery_address: `${address.line1}, ${address.city} ${address.zip}`,
-          medicines: cart.map(item => `${item.name} x${item.qty}`).join(", "),
-        },
-        theme: { color: "#0fa381" },
-        modal: {
-          ondismiss: () => setIsProcessingPayment(false),
-        },
-      };
+        }
+      },
+      prefill: {
+        name: address.name,
+        email: address.email || "customer@medai.com",
+        contact: address.phone,
+      },
+      notes: {
+        delivery_address: `${address.line1}, ${address.city} ${address.zip}`,
+        medicines: cart.map(item => `${item.name} x${item.qty}`).join(", "),
+        total_items: cart.length.toString(),
+      },
+      theme: { color: "#0fa381" },
+      modal: {
+        ondismiss: () => {
+          setIsProcessingPayment(false);
+        }
+      },
+    };
 
-      const razorpay = new window.Razorpay(options);
-      razorpay.on("payment.failed", (response: any) => {
-        alert(`Payment failed: ${response.error?.description || "Please try again"}`);
-        setIsProcessingPayment(false);
-      });
-      razorpay.open();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Payment initiation failed.");
+    const razorpay = new window.Razorpay(options);
+    razorpay.on("payment.failed", (response: any) => {
+      console.error("Payment Failed:", response.error);
+      alert(`Payment Failed: ${response.error?.description || "Please try again"}`);
       setIsProcessingPayment(false);
-    }
-  };
+    });
+    razorpay.open();
+    
+  } catch (err) {
+    console.error("Payment Error:", err);
+    alert(err instanceof Error ? err.message : "Failed to initiate payment. Please try again.");
+    setIsProcessingPayment(false);
+  }
+};
 
   const resetAll = () => {
     setResults(null);
@@ -503,15 +550,27 @@ export default function MedAI() {
       <style>{css}</style>
 
       <nav className="nav">
-        <div className="nav-logo" onClick={resetAll}>
-          ✚ <span>Med<b style={{ color: "var(--mint)" }}>AI</b></span>
-        </div>
-        <div className="nav-actions">
-          <button className="cart-btn" onClick={() => setCartOpen(true)}>
-            🛒 Cart {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
-          </button>
-        </div>
-      </nav>
+  <div className="nav-logo" onClick={resetAll}>
+    ✚ <span>Med<b style={{ color: "var(--mint)" }}>AI</b></span>
+  </div>
+  <div className="nav-actions">
+    {!isSignedIn ? (
+      <SignInButton mode="modal">
+        <button className="cart-btn">Sign In</button>
+      </SignInButton>
+    ) : (
+      <>
+        <Link href="/orders" className="cart-btn">
+          📦 My Orders
+        </Link>
+        <UserButton />
+      </>
+    )}
+    <button className="cart-btn" onClick={() => setCartOpen(true)}>
+      🛒 Cart {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
+    </button>
+  </div>
+</nav>
 
       <section className="hero">
         <div className="hero-badge">✦ AI-Powered Pharmacy</div>
