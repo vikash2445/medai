@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SignInButton, UserButton, useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
+import PrescriptionScanner from './components/PrescriptionScanner';
 
 
 
@@ -391,6 +392,24 @@ export default function MedAI() {
     setLoading(false);
   };
 
+  const handlePrescriptionMedicines = async (medicines: string[]) => {
+  // Search for each medicine and add to cart
+  for (const medicineName of medicines) {
+    const response = await fetch('/api/search-medicine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: medicineName }),
+    });
+    const medicine = await response.json();
+    if (medicine) {
+      addToCart(medicine);
+    }
+  }
+  
+  // Show success message
+  alert(`Added ${medicines.length} medicines to cart!`);
+};
+
   const addToCart = (med: Medicine) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === med.id);
@@ -483,7 +502,37 @@ export default function MedAI() {
           const orderData = await orderResponse.json();
           
           if (orderResponse.ok) {
-            alert(`Payment Successful! 🎉\nOrder ID: ${orderData.orderId?.slice(0, 8)}\nPayment ID: ${response.razorpay_payment_id}`);
+            // ✅ SEND EMAIL CONFIRMATION
+            try {
+              const emailResponse = await fetch("/api/send-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  orderId: orderData.orderId,
+                  customerName: address.name,
+                  customerEmail: address.email || "customer@medai.com",
+                  customerPhone: address.phone,
+                  items: cart.map(item => ({
+                    name: item.name,
+                    qty: item.qty,
+                    price: item.price
+                  })),
+                  total: cartTotal + 4.99,
+                  shippingAddress: `${address.line1}, ${address.city}, ${address.zip}`
+                }),
+              });
+
+              if (emailResponse.ok) {
+                console.log("Order confirmation email sent successfully");
+              } else {
+                console.error("Failed to send email notification");
+              }
+            } catch (emailError) {
+              console.error("Email sending error:", emailError);
+              // Don't block the success flow if email fails
+            }
+
+            alert(`Payment Successful! 🎉\nOrder ID: ${orderData.orderId?.slice(0, 8)}\nPayment ID: ${response.razorpay_payment_id}\nConfirmation email sent to ${address.email || "your email"}`);
             // Clear cart and show success
             setCart([]);
             setAddedIds(new Set());
@@ -551,7 +600,7 @@ export default function MedAI() {
 
       <nav className="nav">
   <div className="nav-logo" onClick={resetAll}>
-    ✚ <span>Med<b style={{ color: "var(--mint)" }}>AI</b></span>
+    ✚ <span>Medi<b style={{ color: "var(--mint)" }}>Ora</b></span>
   </div>
   <div className="nav-actions">
     {!isSignedIn ? (
@@ -589,6 +638,12 @@ export default function MedAI() {
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleAnalyze()}
             />
+             {/* Add Prescription Scanner Button */}
+  <PrescriptionScanner onMedicinesDetected={handlePrescriptionMedicines} />
+  
+  <button className="analyze-btn" onClick={handleAnalyze} disabled={!query.trim() || loading}>
+    {loading ? "Analyzing…" : "Find Medicine →"}
+  </button>
           </div>
           <div className="search-actions">
             <button className={`voice-btn ${recording ? "recording" : ""}`} onClick={toggleVoice}>
@@ -677,7 +732,7 @@ export default function MedAI() {
 
       {!results && !loading && !apiError && (
         <section className="how-section">
-          <h2>How MedAI Works</h2>
+          <h2>How Mediora Works</h2>
           <div className="steps-grid">
             {[
               { icon: "🗣️", title: "Describe Symptoms", desc: "Type or use voice to describe how you're feeling." },
