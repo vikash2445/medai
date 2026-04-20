@@ -14,12 +14,29 @@
   --gold: #f0b429;
   --card-shadow: 0 4px 24px rgba(15, 163, 129, 0.12);
   --radius: 16px;
+  --mint: #0fa381;
+  --mint-light: #e6f7f3;
+  --mint-dark: #0a7860;
+  --cream: #faf9f6;
+  --ink: #1a1a2e;
+  --ink-soft: #4a4a6a;
+
 }
+.bg-cream { background: var(--cream); }
+.bg-mint { background: var(--mint); }
+.bg-mint-light { background: var(--mint-light); }
+.text-mint { color: var(--mint); }
+.text-mint-dark { color: var(--mint-dark); }
+.text-ink { color: var(--ink); }
+.text-ink-soft { color: var(--ink-soft); }
+.hover\:bg-mint-dark:hover { background: var(--mint-dark); }
+.hover\:text-mint-dark:hover { color: var(--mint-dark); }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    
   }
 }
 

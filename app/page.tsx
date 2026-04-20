@@ -598,7 +598,7 @@ export default function MedAI() {
     <>
       <style>{css}</style>
 
-      <nav className="nav">
+     <nav className="nav">
   <div className="nav-logo" onClick={resetAll}>
     ✚ <span>Medi<b style={{ color: "var(--mint)" }}>Ora</b></span>
   </div>
@@ -609,14 +609,17 @@ export default function MedAI() {
       </SignInButton>
     ) : (
       <>
-        <Link href="/orders" className="cart-btn">
-          📦 My Orders
+        <Link href="/dashboard" className="cart-btn" title="Dashboard">
+          👤
+        </Link>
+        <Link href="/orders" className="cart-btn" title="Orders">
+          📦
         </Link>
         <UserButton />
       </>
     )}
-    <button className="cart-btn" onClick={() => setCartOpen(true)}>
-      🛒 Cart {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
+    <button className="cart-btn" onClick={() => setCartOpen(true)} title="Cart">
+      🛒 {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
     </button>
   </div>
 </nav>

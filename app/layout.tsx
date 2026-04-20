@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from '@vercel/analytics/react';
@@ -14,15 +14,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// ✅ Separate metadata export (without viewport)
 export const metadata: Metadata = {
   title: "MedAI - AI-Powered Pharmacy",
   description: "Describe your symptoms and get instant OTC medicine recommendations",
   keywords: "pharmacy, medicine, healthcare, AI, OTC, medical assistant",
   authors: [{ name: "MedAI" }],
-  viewport: "width=device-width, initial-scale=1",
   icons: {
     icon: "/favicon.ico",
   },
+};
+
+// ✅ Add separate viewport export (fixes the warning)
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: true,
 };
 
 export default function RootLayout({
