@@ -754,9 +754,17 @@ export default function MedAI() {
       )}
 
       <footer className="footer">
-        <span>© 2026 MedAI. All rights reserved.</span>
-        <span>Not a substitute for professional medical advice.</span>
-      </footer>
+  <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
+    <span>© {new Date().getFullYear()} MedAI. All rights reserved.</span>
+    <div className="flex gap-6">
+      <Link href="/privacy" className="hover:text-mint transition">Privacy</Link>
+      <Link href="/terms" className="hover:text-mint transition">Terms</Link>
+      <Link href="/refund" className="hover:text-mint transition">Refund</Link>
+      <Link href="/disclaimer" className="hover:text-mint transition">Disclaimer</Link>
+    </div>
+    <span>Not a substitute for professional medical advice.</span>
+  </div>
+</footer>
 
       {/* Cart Panel */}
       {cartOpen && (

@@ -1,15 +1,19 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Tesseract from 'tesseract.js';
 
 interface PrescriptionScannerProps {
   onMedicinesDetected: (medicines: any[]) => void;
+  onSearchQuery?: (query: string) => void;
 }
 
-export default function PrescriptionScanner({ onMedicinesDetected }: PrescriptionScannerProps) {
+export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery }: PrescriptionScannerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState('');
+  const [detectedMedicines, setDetectedMedicines] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -20,68 +24,128 @@ export default function PrescriptionScanner({ onMedicinesDetected }: Prescriptio
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
     setScanning(true);
+    setExtractedText('');
+    setDetectedMedicines([]);
 
     try {
-      // Read the image and extract text using Tesseract
-      const Tesseract = (await import('tesseract.js')).default;
-      const result = await Tesseract.recognize(file, 'eng');
-      const extractedText = result.data.text;
-      
-      console.log('Extracted text:', extractedText);
-
-      // Send to your AI API to extract medicines
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query: `Extract medicine names from this prescription text and return them as medicines. Prescription: "${extractedText}"`
-        }),
+      // Extract text from image using Tesseract OCR
+      const result = await Tesseract.recognize(file, 'eng', {
+        logger: (m) => console.log(m),
       });
       
-      const data = await response.json();
+      const text = result.data.text;
+      setExtractedText(text);
+      console.log('Extracted text:', text);
+
+      // Extract medicine names using AI
+      const medicines = await extractMedicinesWithAI(text);
+      setDetectedMedicines(medicines);
       
-      if (data.medicines && data.medicines.length > 0) {
-        onMedicinesDetected(data.medicines);
+      if (medicines.length > 0) {
+        // Search for each medicine
+        const medicineResults = await searchMedicines(medicines);
+        onMedicinesDetected(medicineResults);
+        
+        // Also set the search query if there's a primary symptom
+        if (onSearchQuery && medicines.length > 0) {
+          onSearchQuery(`I need ${medicines.join(', ')}`);
+        }
+        
         setIsOpen(false);
         setPreviewUrl(null);
       } else {
-        alert('No medicines detected. Please try again or type manually.');
+        alert('No medicines detected. Please try a clearer image or type manually.');
       }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Failed to read prescription. Please try again.');
+      console.error('OCR Error:', error);
+      alert('Failed to read prescription. Please try again with a clearer image.');
     } finally {
       setScanning(false);
     }
   };
 
+  const extractMedicinesWithAI = async (text: string): Promise<string[]> => {
+    try {
+      const response = await fetch('/api/extract-medicines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await response.json();
+      return data.medicines || [];
+    } catch (error) {
+      console.error('AI Extraction error:', error);
+      // Fallback: extract common medicine names using regex
+      return extractMedicineNamesRegex(text);
+    }
+  };
+
+  const extractMedicineNamesRegex = (text: string): string[] => {
+    const commonMedicines = [
+      'paracetamol', 'ibuprofen', 'cetirizine', 'loratadine', 'omeprazole',
+      'amoxicillin', 'azithromycin', 'dolo', 'crocin', 'combiflam',
+      'levocetirizine', 'montelukast', 'pantoprazole', 'rabeprazole'
+    ];
+    
+    const lowerText = text.toLowerCase();
+    const found: string[] = [];
+    
+    for (const med of commonMedicines) {
+      if (lowerText.includes(med)) {
+        found.push(med.charAt(0).toUpperCase() + med.slice(1));
+      }
+    }
+    
+    return found;
+  };
+
+  const searchMedicines = async (medicineNames: string[]): Promise<any[]> => {
+    const results: any[] = [];
+    
+    for (const name of medicineNames) {
+      try {
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: `Recommend ${name} medicine` }),
+        });
+        const data = await response.json();
+        if (data.medicines && data.medicines.length > 0) {
+          results.push(...data.medicines);
+        }
+      } catch (error) {
+        console.error(`Error searching for ${name}:`, error);
+      }
+    }
+    
+    return results;
+  };
+
   return (
     <>
       <button
-  onClick={() => setIsOpen(true)}
-  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-mint hover:text-mint-dark transition-all duration-200"
-  type="button"
->
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-  </svg>
-  Prescription
-</button>
+        onClick={() => setIsOpen(true)}
+        className="voice-btn"
+        type="button"
+        style={{ padding: "10px 16px" }}
+      >
+        📷 Rx
+      </button>
 
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={() => setIsOpen(false)}
         >
           <div 
-            className="bg-white rounded-xl max-w-md w-full p-6"
+            className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Upload Prescription</h2>
               <button 
                 onClick={() => setIsOpen(false)}
-                className="text-gray-500 hover:text-gray-700 text-xl"
+                className="text-gray-400 hover:text-gray-600 text-xl"
               >
                 ✕
               </button>
@@ -103,13 +167,13 @@ export default function PrescriptionScanner({ onMedicinesDetected }: Prescriptio
                     />
                     <label
                       htmlFor="prescription-input"
-                      className="inline-block bg-mint text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-mint-dark"
+                      className="inline-block bg-[#0fa381] text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-[#0a7860] transition"
                     >
                       Choose Image
                     </label>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Supported formats: JPG, PNG. Max size: 5MB
+                  <p className="text-xs text-gray-500">
+                    Supported: JPG, PNG. Make sure the text is clear.
                   </p>
                 </>
               ) : (
@@ -117,7 +181,7 @@ export default function PrescriptionScanner({ onMedicinesDetected }: Prescriptio
                   <img 
                     src={previewUrl} 
                     alt="Prescription preview" 
-                    className="max-h-64 mx-auto rounded-lg mb-4"
+                    className="max-h-48 mx-auto rounded-lg mb-4 border"
                   />
                   {scanning ? (
                     <div className="text-center">
@@ -125,15 +189,37 @@ export default function PrescriptionScanner({ onMedicinesDetected }: Prescriptio
                       <p>Reading prescription...</p>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        setPreviewUrl(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="text-red-500"
-                    >
-                      Remove and try again
-                    </button>
+                    <div>
+                      {extractedText && (
+                        <div className="mt-4 p-3 bg-gray-100 rounded text-left">
+                          <p className="font-semibold text-sm mb-1">Extracted Text:</p>
+                          <p className="text-xs text-gray-600 line-clamp-3">{extractedText}</p>
+                        </div>
+                      )}
+                      {detectedMedicines.length > 0 && (
+                        <div className="mt-3">
+                          <p className="font-semibold text-sm text-[#0fa381]">Detected Medicines:</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {detectedMedicines.map((med, idx) => (
+                              <span key={idx} className="bg-[#e6f7f3] text-[#0a7860] px-2 py-1 rounded-full text-xs">
+                                {med}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => {
+                          setPreviewUrl(null);
+                          setExtractedText('');
+                          setDetectedMedicines([]);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="mt-4 text-red-500 text-sm"
+                      >
+                        Try another image
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
