@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Analytics } from '@vercel/analytics/react';
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,30 +14,54 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// ✅ Separate metadata export (without viewport)
 export const metadata: Metadata = {
-  title: "MedAI - AI-Powered Pharmacy",
-  description: "Describe your symptoms and get instant OTC medicine recommendations",
-  keywords: "pharmacy, medicine, healthcare, AI, OTC, medical assistant",
-  authors: [{ name: "MedAI" }],
+  metadataBase: new URL("https://mediora.fit"),
+
+  title: "Mediora - AI Powered Pharmacy & Health Assistant",
+  description:
+    "Order medicines online and get AI-based health suggestions instantly with Mediora.",
+  keywords: [
+    "Mediora",
+    "online pharmacy",
+    "AI healthcare",
+    "medicine delivery",
+    "health assistant",
+  ],
+
+  authors: [{ name: "Mediora" }],
+
   icons: {
-    icon: "/favicon.ico",
+    icon: "/favicon.ico",        // ✅ correct
+    shortcut: "/favicon.ico",
+    apple: "/logo.png",          // ✅ optional but good
+  },
+
+  openGraph: {
+    title: "Mediora - AI Pharmacy",
+    description: "AI-powered pharmacy & health assistant platform",
+    url: "https://mediora.fit",
+    siteName: "Mediora",
+    images: [
+      {
+        url: "/logo.png",
+        width: 512,
+        height: 512,
+      },
+    ],
+    type: "website",
   },
 };
 
-// ✅ Add separate viewport export (fixes the warning)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: true,
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <ClerkProvider>
       <html
