@@ -16,7 +16,7 @@ export default function PrivacyPage() {
         <div className="bg-white rounded-xl shadow-sm p-8 space-y-6">
           <div className="p-4 bg-mint-light rounded-lg">
             <p className="text-mint-dark text-sm">
-              At MedAI, we take your privacy seriously. This policy describes how we collect, use, and protect your personal information when you use our pharmacy services.
+              At Mediora, we take your privacy seriously. This policy describes how we collect, use, and protect your personal information when you use our pharmacy services.
             </p>
           </div>
 
@@ -95,14 +95,14 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-ink mb-3">9. Contact Us</h2>
             <p className="text-ink-soft">For privacy concerns or questions:</p>
             <ul className="list-none mt-2 space-y-1 text-ink-soft">
-              <li>📧 Email: <strong className="text-mint">privacy@medai.com</strong></li>
-              <li>📞 Phone: <strong className="text-mint">+91-XXXXXXXXXX</strong></li>
+              <li>📧 Email: <strong className="text-mint">privacy@mediora.fit</strong></li>
+              <li>📞 Phone: <strong className="text-mint">+91-9649418425</strong></li>
               <li>🏢 Address: [Your Business Address]</li>
             </ul>
           </section>
 
           <div className="border-t pt-4 text-center text-sm text-ink-muted">
-            <p>© {new Date().getFullYear()} MedAI. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Mediora. All rights reserved.</p>
           </div>
         </div>
       </div>

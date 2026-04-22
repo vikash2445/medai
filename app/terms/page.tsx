@@ -16,24 +16,24 @@ export default function TermsPage() {
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-yellow-800 text-sm font-semibold">⚠️ IMPORTANT MEDICAL DISCLAIMER</p>
             <p className="text-yellow-700 text-sm mt-1">
-              MedAI is NOT a substitute for professional medical advice, diagnosis, or treatment. 
+              Mediora is NOT a substitute for professional medical advice, diagnosis, or treatment. 
               Always seek the advice of your physician or qualified healthcare provider.
             </p>
           </div>
 
           <section>
             <h2 className="text-xl font-semibold text-ink mb-3">1. Acceptance of Terms</h2>
-            <p className="text-ink-soft">By accessing or using MedAI, you agree to be bound by these Terms of Service. If you disagree with any part, please do not use our services.</p>
+            <p className="text-ink-soft">By accessing or using Mediora, you agree to be bound by these Terms of Service. If you disagree with any part, please do not use our services.</p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-ink mb-3">2. Eligibility</h2>
-            <p className="text-ink-soft">You must be at least 18 years old to use MedAI. By using our services, you represent that you are 18 or older.</p>
+            <p className="text-ink-soft">You must be at least 18 years old to use Mediora. By using our services, you represent that you are 18 or older.</p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-ink mb-3">3. Our Services</h2>
-            <p className="text-ink-soft">MedAI provides:</p>
+            <p className="text-ink-soft">Mediora provides:</p>
             <ul className="list-disc pl-6 mt-2 space-y-1 text-ink-soft">
               <li>AI-powered over-the-counter (OTC) medicine recommendations based on symptoms</li>
               <li>Prescription image scanning and medicine identification</li>
@@ -93,12 +93,12 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-ink mb-3">9. Limitation of Liability</h2>
-            <p className="text-ink-soft">To the maximum extent permitted by law, MedAI shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of our services.</p>
+            <p className="text-ink-soft">To the maximum extent permitted by law, Mediora shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of our services.</p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-ink mb-3">10. Indemnification</h2>
-            <p className="text-ink-soft">You agree to indemnify and hold MedAI harmless from any claims arising from your violation of these Terms or applicable laws.</p>
+            <p className="text-ink-soft">You agree to indemnify and hold Mediora harmless from any claims arising from your violation of these Terms or applicable laws.</p>
           </section>
 
           <section>
@@ -108,16 +108,16 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-ink mb-3">12. Changes to Terms</h2>
-            <p className="text-ink-soft">We may modify these Terms at any time. Continued use of MedAI constitutes acceptance of the modified Terms.</p>
+            <p className="text-ink-soft">We may modify these Terms at any time. Continued use of Mediora constitutes acceptance of the modified Terms.</p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold text-ink mb-3">13. Contact</h2>
-            <p className="text-ink-soft">For questions about these Terms: <strong className="text-mint">legal@medai.com</strong></p>
+            <p className="text-ink-soft">For questions about these Terms: <strong className="text-mint">legal@mediora.fit</strong></p>
           </section>
 
           <div className="border-t pt-4 text-center text-sm text-ink-muted">
-            <p>© {new Date().getFullYear()} MedAI. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Mediora. All rights reserved.</p>
           </div>
         </div>
       </div>

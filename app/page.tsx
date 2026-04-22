@@ -334,12 +334,14 @@ export default function MedAI() {
 
   // Load Razorpay SDK
   useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    document.body.appendChild(script);
-    return () => { document.body.removeChild(script); };
-  }, []);
+  const script = document.createElement("script");
+  script.src = "https://checkout.razorpay.com/v1/checkout.js";
+  script.async = true;
+  script.onload = () => console.log("✅ Razorpay script loaded");
+  script.onerror = () => console.error("❌ Razorpay script failed to load");
+  document.body.appendChild(script);
+  return () => { document.body.removeChild(script); };
+}, []);
 
   // Speech Recognition
   useEffect(() => {
@@ -454,33 +456,73 @@ export default function MedAI() {
   setIsProcessingPayment(true);
   try {
     const totalAmount = Math.round((cartTotal + 4.99) * 100); // Convert to paise
-    const res = await fetch("/api/create_order", {
+    
+    // ✅ STEP 1: Create Razorpay Order (using your existing endpoint)
+    const razorpayRes = await fetch("/api/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount: totalAmount }),
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Failed to create order");
+    if (!razorpayRes.ok) {
+      const err = await razorpayRes.json();
+      throw new Error(err.error || "Failed to create Razorpay order");
     }
 
-    const order = await res.json();
-    if (!order.id) throw new Error("No order ID received");
+    const razorpayOrder = await razorpayRes.json();
+    if (!razorpayOrder.id) throw new Error("No Razorpay order ID received");
+
+    console.log("✅ Razorpay order created:", razorpayOrder);
 
     const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_YourTestKeyHere",
-      amount: order.amount,
-      currency: "INR",
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_SfxDtJYjdnm9Bp",
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency || "INR",
       name: "MedAI Pharmacy",
       description: `Medicine Order - ${cart.length} items`,
-      order_id: order.id,
+      order_id: razorpayOrder.id,
+      prefill: {
+        name: address.name,
+        email: address.email || "customer@medai.com",
+        contact: address.phone,
+      },
+      notes: {
+        delivery_address: `${address.line1}, ${address.city} ${address.zip}`,
+        medicines: cart.map(item => `${item.name} x${item.qty}`).join(", "),
+        total_items: cart.length.toString(),
+      },
+      theme: { color: "#0fa381" },
+      modal: {
+        ondismiss: () => {
+          console.log("Payment modal closed");
+          setIsProcessingPayment(false);
+        }
+      },
       handler: async (response: any) => {
         console.log("Payment Success:", response);
         
-        // ✅ AFTER PAYMENT SUCCESS - Save order to Supabase
+        // ✅ STEP 2: Verify Payment Signature
+        const verifyRes = await fetch("/api/verify-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          }),
+        });
+
+        const verifyData = await verifyRes.json();
+
+        if (!verifyData.success) {
+          alert("Payment verification failed. Please contact support.");
+          setIsProcessingPayment(false);
+          return;
+        }
+
+        // ✅ STEP 3: Save order to Supabase
         try {
-          const orderResponse = await fetch("/api/create-order", {
+          const orderResponse = await fetch("/api/save-order", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -502,7 +544,7 @@ export default function MedAI() {
           const orderData = await orderResponse.json();
           
           if (orderResponse.ok) {
-            // ✅ SEND EMAIL CONFIRMATION
+            // ✅ STEP 4: Send email confirmation
             try {
               const emailResponse = await fetch("/api/send-email", {
                 method: "POST",
@@ -524,19 +566,14 @@ export default function MedAI() {
 
               if (emailResponse.ok) {
                 console.log("Order confirmation email sent successfully");
-              } else {
-                console.error("Failed to send email notification");
               }
             } catch (emailError) {
               console.error("Email sending error:", emailError);
-              // Don't block the success flow if email fails
             }
 
-            alert(`Payment Successful! 🎉\nOrder ID: ${orderData.orderId?.slice(0, 8)}\nPayment ID: ${response.razorpay_payment_id}\nConfirmation email sent to ${address.email || "your email"}`);
-            // Clear cart and show success
+            alert(`Payment Successful! 🎉\nOrder ID: ${orderData.orderId?.slice(0, 8)}\nPayment ID: ${response.razorpay_payment_id}`);
             setCart([]);
             setAddedIds(new Set());
-            setIsProcessingPayment(false);
             setCheckoutStep(3);
           } else {
             alert(`Payment succeeded but order could not be saved. Please contact support.\nPayment ID: ${response.razorpay_payment_id}`);
@@ -551,31 +588,19 @@ export default function MedAI() {
           setAddedIds(new Set());
           setCheckoutStep(3);
         }
-      },
-      prefill: {
-        name: address.name,
-        email: address.email || "customer@medai.com",
-        contact: address.phone,
-      },
-      notes: {
-        delivery_address: `${address.line1}, ${address.city} ${address.zip}`,
-        medicines: cart.map(item => `${item.name} x${item.qty}`).join(", "),
-        total_items: cart.length.toString(),
-      },
-      theme: { color: "#0fa381" },
-      modal: {
-        ondismiss: () => {
-          setIsProcessingPayment(false);
-        }
+        
+        setIsProcessingPayment(false);
       },
     };
 
     const razorpay = new window.Razorpay(options);
+    
     razorpay.on("payment.failed", (response: any) => {
       console.error("Payment Failed:", response.error);
       alert(`Payment Failed: ${response.error?.description || "Please try again"}`);
       setIsProcessingPayment(false);
     });
+    
     razorpay.open();
     
   } catch (err) {

@@ -7,7 +7,7 @@ export default function RefundPage() {
     <div className="min-h-screen bg-cream">
       <div className="max-w-4xl mx-auto px-4 py-12">
         <div className="text-center mb-8">
-          <Link href="/" className="text-mint hover:underline text-sm">← Back to MedAI</Link>
+          <Link href="/" className="text-mint hover:underline text-sm">← Back to Mediora</Link>
           <h1 className="text-3xl font-bold text-ink mt-4">Refund & Cancellation Policy</h1>
           <p className="text-ink-soft mt-2">Last updated: {new Date().toLocaleDateString('en-IN')}</p>
         </div>
@@ -18,7 +18,7 @@ export default function RefundPage() {
             <ul className="list-disc pl-6 space-y-2 text-ink-soft">
               <li><strong>Before Dispatch:</strong> You can cancel your order within 30 minutes of placement for a full refund</li>
               <li><strong>After Dispatch:</strong> Orders cannot be canceled once dispatched from our pharmacy</li>
-              <li><strong>How to Cancel:</strong> Contact us at <strong className="text-mint">support@medai.com</strong> or call our helpline</li>
+              <li><strong>How to Cancel:</strong> Contact us at <strong className="text-mint">support@mediora.fit</strong> or call our helpline</li>
             </ul>
           </section>
 
@@ -83,14 +83,14 @@ export default function RefundPage() {
             <h2 className="text-xl font-semibold text-ink mb-3">7. Contact for Refunds</h2>
             <p className="text-ink-soft">For refund-related queries:</p>
             <ul className="list-none mt-2 space-y-1 text-ink-soft">
-              <li>📧 Email: <strong className="text-mint">refunds@medai.com</strong></li>
-              <li>📞 Phone: <strong className="text-mint">+91-XXXXXXXXXX</strong></li>
+              <li>📧 Email: <strong className="text-mint">refunds@mediora.fit</strong></li>
+              <li>📞 Phone: <strong className="text-mint">+91-9649418425</strong></li>
               <li>⏰ Hours: Monday-Saturday, 10 AM - 7 PM</li>
             </ul>
           </section>
 
           <div className="border-t pt-4 text-center text-sm text-ink-muted">
-            <p>© {new Date().getFullYear()} MedAI. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Mediora. All rights reserved.</p>
           </div>
         </div>
       </div>
