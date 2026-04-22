@@ -4,13 +4,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { SignInButton, UserButton, useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import PrescriptionScanner from './components/PrescriptionScanner';
-import DailyHealthTip from './components/DailyHealthTip';
-
-// Add after hero section or before search box
-<div className="max-w-720 mx-auto px-4 mb-6">
-  <DailyHealthTip />
-</div>
-
 
 
 // ========== Web Speech API Type Declarations ==========
