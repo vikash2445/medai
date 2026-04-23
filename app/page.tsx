@@ -457,7 +457,7 @@ export default function MedAI() {
     const totalAmount = Math.round((cartTotal + 4.99) * 100); // Convert to paise
     
     // ✅ STEP 1: Create Razorpay Order (using your existing endpoint)
-    const razorpayRes = await fetch("/api/create-order", {
+    const razorpayRes = await fetch("/api/store-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount: totalAmount }),
