@@ -3,6 +3,18 @@
 import { useState, useRef } from 'react';
 import Tesseract from 'tesseract.js';
 
+interface Medicine {
+  id: number;
+  name: string;
+  type: string;
+  emoji: string;
+  price: number;
+  description: string;
+  tags: string[];
+  recommended?: boolean;
+  drugName?: string;
+}
+
 interface PrescriptionScannerProps {
   onMedicinesDetected: (medicines: any[]) => void;
   onSearchQuery?: (query: string) => void;
@@ -14,11 +26,26 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState('');
   const [detectedMedicines, setDetectedMedicines] = useState<string[]>([]);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
+  const [step, setStep] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (JPG, PNG, etc.)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File too large. Please upload image less than 5MB.');
+      return;
+    }
 
     // Show preview
     const url = URL.createObjectURL(file);
@@ -26,65 +53,180 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     setScanning(true);
     setExtractedText('');
     setDetectedMedicines([]);
+    setAnalysisResult(null);
+    setProgress(10);
+    setStep('📷 Reading prescription image...');
 
     try {
-      // Extract text from image using Tesseract OCR
+      // Step 1: Extract text from image using Tesseract OCR
+      setStep('🔍 Extracting text from prescription...');
+      setProgress(20);
+      
       const result = await Tesseract.recognize(file, 'eng', {
-        logger: (m) => console.log(m),
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            const progressVal = 20 + Math.floor(m.progress * 50);
+            setProgress(progressVal);
+          }
+        },
       });
       
       const text = result.data.text;
       setExtractedText(text);
       console.log('Extracted text:', text);
-
-      // Extract medicine names using AI
-      const medicines = await extractMedicinesWithAI(text);
-      setDetectedMedicines(medicines);
+      setProgress(70);
       
-      if (medicines.length > 0) {
-        // Search for each medicine
-        const medicineResults = await searchMedicines(medicines);
+      if (!text || text.trim().length < 10) {
+        alert('Could not read text from prescription. Please ensure the image is clear and well-lit.');
+        setScanning(false);
+        return;
+      }
+
+      // Step 2: Extract medicine names and analyze prescription using AI
+      setStep('🤖 AI analyzing prescription...');
+      setProgress(80);
+      
+      const analysis = await analyzePrescriptionWithAI(text);
+      setAnalysisResult(analysis);
+      setProgress(95);
+      
+      if (analysis.medicines && analysis.medicines.length > 0) {
+        // Format medicines for cart
+        const medicineResults = analysis.medicines.map((med: any, idx: number) => ({
+          id: Date.now() + idx,
+          name: med.name,
+          type: med.type || 'Prescribed',
+          emoji: getMedicineEmoji(med.type),
+          price: 49.99,
+          description: med.purpose || med.description || `Prescribed for ${analysis.disease?.name || 'your condition'}`,
+          tags: [med.type || 'Prescription', med.purpose?.split(' ')[0] || 'Medicine'],
+          recommended: idx === 0,
+          drugName: med.name.toLowerCase().split(' ')[0],
+          dosage: med.dosage,
+          duration: med.duration
+        }));
+        
         onMedicinesDetected(medicineResults);
         
-        // Also set the search query if there's a primary symptom
-        if (onSearchQuery && medicines.length > 0) {
-          onSearchQuery(`I need ${medicines.join(', ')}`);
+        // Set search query
+        if (onSearchQuery && analysis.disease?.name) {
+          onSearchQuery(`Treatment for ${analysis.disease.name}`);
         }
         
-        setIsOpen(false);
-        setPreviewUrl(null);
+        setProgress(100);
+        setTimeout(() => {
+          setIsOpen(false);
+          setPreviewUrl(null);
+          setAnalysisResult(null);
+        }, 1500);
       } else {
-        alert('No medicines detected. Please try a clearer image or type manually.');
+        // Fallback: extract medicine names using regex
+        const medicines = extractMedicineNamesRegex(text);
+        if (medicines.length > 0) {
+          const medicineResults = await searchMedicines(medicines);
+          onMedicinesDetected(medicineResults);
+          setIsOpen(false);
+          setPreviewUrl(null);
+        } else {
+          alert('No medicines detected. Please try a clearer image or type manually.');
+        }
       }
     } catch (error) {
       console.error('OCR Error:', error);
       alert('Failed to read prescription. Please try again with a clearer image.');
     } finally {
       setScanning(false);
+      setProgress(0);
+      setStep('');
     }
   };
 
-  const extractMedicinesWithAI = async (text: string): Promise<string[]> => {
+  const analyzePrescriptionWithAI = async (text: string): Promise<any> => {
     try {
-      const response = await fetch('/api/extract-medicines', {
+      const response = await fetch('/api/analyze-prescription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
+      
+      if (!response.ok) {
+        throw new Error('AI analysis failed');
+      }
+      
       const data = await response.json();
-      return data.medicines || [];
+      return data;
     } catch (error) {
-      console.error('AI Extraction error:', error);
-      // Fallback: extract common medicine names using regex
-      return extractMedicineNamesRegex(text);
+      console.error('AI Analysis error:', error);
+      // Return fallback analysis
+      return getFallbackAnalysis(text);
     }
+  };
+
+  const getFallbackAnalysis = (text: string) => {
+    const lowerText = text.toLowerCase();
+    let disease = "General Health Condition";
+    let medicines: any[] = [];
+    
+    if (lowerText.includes("fever") || lowerText.includes("temperature")) {
+      disease = "Fever";
+      medicines = [
+        { name: "Paracetamol 500mg", type: "Analgesic", dosage: "1 tablet every 6 hours", duration: "3-5 days", purpose: "Reduces fever and mild pain" },
+        { name: "Ibuprofen 400mg", type: "NSAID", dosage: "1 tablet every 8 hours", duration: "3-5 days", purpose: "Reduces fever and body aches" }
+      ];
+    } else if (lowerText.includes("cough") || lowerText.includes("cold")) {
+      disease = "Upper Respiratory Infection";
+      medicines = [
+        { name: "Cold & Flu Tablet", type: "Combination", dosage: "1 tablet every 6 hours", duration: "5 days", purpose: "Relieves cold and cough symptoms" },
+        { name: "Cough Syrup DM", type: "Cough Suppressant", dosage: "10ml every 8 hours", duration: "5 days", purpose: "Suppresses dry cough" }
+      ];
+    } else if (lowerText.includes("headache") || lowerText.includes("migraine")) {
+      disease = "Headache";
+      medicines = [
+        { name: "Ibuprofen 400mg", type: "NSAID", dosage: "1 tablet every 8 hours", duration: "3 days", purpose: "Relieves headache pain" },
+        { name: "Paracetamol 500mg", type: "Analgesic", dosage: "1 tablet every 6 hours", duration: "3 days", purpose: "Pain relief" }
+      ];
+    } else {
+      // Extract any medicine names from text
+      const foundMeds = extractMedicineNamesRegex(text);
+      medicines = foundMeds.map((name, idx) => ({
+        name: `${name} 500mg`,
+        type: "Medicine",
+        dosage: "As prescribed",
+        duration: "As directed",
+        purpose: `Treatment for prescribed condition`
+      }));
+    }
+    
+    return {
+      disease: { name: disease, description: `Based on your prescription, this condition requires proper medication.` },
+      medicines: medicines,
+      healthTips: [
+        "Complete the full course of prescribed medication",
+        "Get plenty of rest and stay hydrated",
+        "Avoid alcohol and smoking during treatment",
+        "Monitor your symptoms and consult doctor if they worsen",
+        "Store medicines as per instructions on the package"
+      ],
+      dietPlan: {
+        foodsToEat: ["Warm soups", "Herbal tea", "Fresh fruits", "Light meals", "Honey with warm water"],
+        foodsToAvoid: ["Spicy food", "Cold drinks", "Fried items", "Processed food", "Excessive dairy"],
+        recommendations: "Eat light, easily digestible foods. Avoid heavy, oily, or spicy meals until recovery."
+      },
+      lifestyleAdvice: [
+        "Take medicines on time as prescribed",
+        "Get adequate sleep (7-8 hours)",
+        "Avoid stress and practice deep breathing",
+        "Wash hands frequently to prevent infection",
+        "Follow up with doctor if no improvement in 3 days"
+      ]
+    };
   };
 
   const extractMedicineNamesRegex = (text: string): string[] => {
     const commonMedicines = [
       'paracetamol', 'ibuprofen', 'cetirizine', 'loratadine', 'omeprazole',
-      'amoxicillin', 'azithromycin', 'dolo', 'crocin', 'combiflam',
-      'levocetirizine', 'montelukast', 'pantoprazole', 'rabeprazole'
+      'amoxicillin', 'azithromycin', 'dolo', 'crocin', 'combiflam', 'levocetirizine',
+      'montelukast', 'pantoprazole', 'rabeprazole', 'aspirin', 'diclofenac'
     ];
     
     const lowerText = text.toLowerCase();
@@ -102,7 +244,8 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
   const searchMedicines = async (medicineNames: string[]): Promise<any[]> => {
     const results: any[] = [];
     
-    for (const name of medicineNames) {
+    for (let i = 0; i < medicineNames.length; i++) {
+      const name = medicineNames[i];
       try {
         const response = await fetch('/api/analyze', {
           method: 'POST',
@@ -111,14 +254,47 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
         });
         const data = await response.json();
         if (data.medicines && data.medicines.length > 0) {
-          results.push(...data.medicines);
+          results.push({ ...data.medicines[0], id: Date.now() + i });
+        } else {
+          // Fallback medicine
+          results.push({
+            id: Date.now() + i,
+            name: `${name} 500mg`,
+            type: "Medicine",
+            emoji: "💊",
+            price: 49.99,
+            description: `Prescribed medicine: ${name}`,
+            tags: ["Prescription"],
+            recommended: i === 0,
+            drugName: name.toLowerCase()
+          });
         }
       } catch (error) {
         console.error(`Error searching for ${name}:`, error);
+        results.push({
+          id: Date.now() + i,
+          name: `${name} 500mg`,
+          type: "Medicine",
+          emoji: "💊",
+          price: 49.99,
+          description: `Prescribed medicine: ${name}`,
+          tags: ["Prescription"],
+          recommended: i === 0,
+          drugName: name.toLowerCase()
+        });
       }
     }
     
     return results;
+  };
+
+  const getMedicineEmoji = (type: string): string => {
+    const t = type.toLowerCase();
+    if (t.includes('antibiotic')) return '💊';
+    if (t.includes('pain')) return '💊';
+    if (t.includes('cough')) return '🍯';
+    if (t.includes('allergy')) return '🌸';
+    return '💊';
   };
 
   return (
@@ -129,7 +305,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
         type="button"
         style={{ padding: "10px 16px" }}
       >
-        📷 Rx
+        📷 Prescription
       </button>
 
       {isOpen && (
@@ -156,7 +332,8 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
                 <>
                   <div className="mb-4 p-8 bg-gray-50 rounded-lg text-center">
                     <div className="text-4xl mb-2">📄</div>
-                    <p className="text-gray-600 mb-4">Upload a photo of your prescription</p>
+                    <p className="text-gray-600 mb-2">Upload a photo of your prescription</p>
+                    <p className="text-xs text-gray-400 mb-4">Supports JPG, PNG (Max 5MB)</p>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -173,7 +350,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
                     </label>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Supported: JPG, PNG. Make sure the text is clear.
+                    Make sure the text is clear and well-lit for best results.
                   </p>
                 </>
               ) : (
@@ -185,15 +362,39 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
                   />
                   {scanning ? (
                     <div className="text-center">
-                      <div className="spinner mx-auto mb-2" />
-                      <p>Reading prescription...</p>
+                      <div className="w-12 h-12 border-4 border-[#0fa381] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <p className="font-medium text-[#0fa381]">{step || 'Processing...'}</p>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+                        <div className="bg-[#0fa381] h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">{progress}% complete</p>
+                    </div>
+                  ) : analysisResult ? (
+                    <div className="text-center">
+                      <div className="text-3xl mb-2">✅</div>
+                      <p className="text-green-600 font-semibold">Prescription Analyzed!</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Detected: {analysisResult.medicines?.length || 0} medicines
+                      </p>
+                      <button
+                        onClick={() => {
+                          setPreviewUrl(null);
+                          setExtractedText('');
+                          setDetectedMedicines([]);
+                          setAnalysisResult(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="mt-4 text-[#0fa381] text-sm hover:underline"
+                      >
+                        Scan another prescription
+                      </button>
                     </div>
                   ) : (
                     <div>
                       {extractedText && (
-                        <div className="mt-4 p-3 bg-gray-100 rounded text-left">
+                        <div className="mt-4 p-3 bg-gray-100 rounded text-left max-h-32 overflow-y-auto">
                           <p className="font-semibold text-sm mb-1">Extracted Text:</p>
-                          <p className="text-xs text-gray-600 line-clamp-3">{extractedText}</p>
+                          <p className="text-xs text-gray-600">{extractedText.substring(0, 200)}...</p>
                         </div>
                       )}
                       {detectedMedicines.length > 0 && (

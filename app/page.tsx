@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SignInButton, UserButton, useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import PrescriptionScanner from './components/PrescriptionScanner';
-
+import MedicineCard from './components/MedicineCard';
 
 // ========== Web Speech API Type Declarations ==========
 interface SpeechRecognitionEvent extends Event {
@@ -51,6 +51,23 @@ interface Medicine {
   recommended?: boolean;
   drugName?: string;
   imageQuery?: string;
+  // Add these new optional fields
+  dosage?: string;
+  category?: string;
+  isAntibiotic?: boolean;
+  usage?: { frequency: string; duration: string; totalTablets: number };
+  quantitySelector?: { 
+    allowLoose: boolean; 
+    tabletsPerStrip: number; 
+    minQuantity: number; 
+    maxQuantity: number; 
+    defaultQuantity: number; 
+    step: number; 
+    recommendedType: string; 
+    note: string 
+  };
+  pricePerTablet?: number;
+  estimatedTotalPrice?: number;
 }
 
 interface CartItem extends Medicine {
@@ -60,6 +77,7 @@ interface CartItem extends Medicine {
 interface AnalysisResult {
   summary: string;
   medicines: Medicine[];
+  notes?: string[];
 }
 
 interface Address {
@@ -71,7 +89,7 @@ interface Address {
   email?: string;
 }
 
-// ========== CSS (same as before - keeping it short) ==========
+// ========== CSS ==========
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap');
 
@@ -149,8 +167,6 @@ const css = `
   .error-box h3 { color:var(--red);font-size:1rem;margin-bottom:12px;display:flex;align-items:center;gap:8px; }
   .error-detail { font-family:monospace;background:#fff;border:1px solid #f0c0c0;border-radius:8px;
                   padding:10px 14px;font-size:.82rem;color:#c0392b;word-break:break-all;margin:10px 0; }
-  .error-steps { padding-left:18px;margin-top:10px; }
-  .error-steps li { font-size:.86rem;color:#7a2020;margin-bottom:6px;line-height:1.5; }
 
   .loading-state { padding:48px;text-align:center; }
   .spinner { width:48px;height:48px;border:3px solid var(--mint-light);
@@ -164,35 +180,7 @@ const css = `
                 border:1.5px solid #f0b42944;border-radius:12px;padding:14px 18px;
                 margin-bottom:28px;font-size:.85rem;color:#7a5a00; }
 
-  .meds-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px; }
-  .med-card { background:#fff;border-radius:var(--radius);border:1.5px solid #e8e5df;
-              overflow:hidden;transition:all .25s;position:relative; }
-  .med-card::before { content:'';position:absolute;top:0;left:0;right:0;height:3px;
-                       background:var(--mint);transform:scaleX(0);transform-origin:left;
-                       transition:transform .3s;z-index:2; }
-  .med-card:hover { box-shadow:var(--card-shadow);border-color:var(--mint);transform:translateY(-3px); }
-  .med-card:hover::before { transform:scaleX(1); }
-  .med-card.recommended { border-color:var(--mint); }
-  .med-card.recommended::before { transform:scaleX(1); }
-
-  .med-icon { width:60px;height:60px;background:var(--mint-light);border-radius:12px;
-              display:flex;align-items:center;justify-content:center;margin:16px 16px 0 16px;
-              font-size:2rem; }
-  .med-body { padding:16px; }
-  .med-name { font-family:'DM Serif Display',serif;font-size:1.2rem;margin-bottom:6px; }
-  .med-type { font-size:.75rem;color:var(--mint-dark);font-weight:600;text-transform:uppercase;
-              letter-spacing:.06em;margin-bottom:8px; }
-  .med-desc { font-size:.87rem;color:var(--ink-soft);line-height:1.55;margin-bottom:14px; }
-  .med-tags { display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px; }
-  .tag { background:var(--stone);color:var(--ink-soft);border-radius:40px;padding:3px 10px;font-size:.75rem;font-weight:500; }
-  .med-footer { display:flex;align-items:center;justify-content:space-between; }
-  .med-price { font-size:1.2rem;font-weight:700;color:var(--ink); }
-  .med-price span { font-size:.82rem;font-weight:400;color:var(--ink-soft); }
-  .add-cart-btn { background:var(--mint);color:#fff;border:none;border-radius:10px;
-                  padding:9px 18px;font-family:'Outfit',sans-serif;font-weight:600;
-                  cursor:pointer;transition:all .2s;font-size:.88rem; }
-  .add-cart-btn:hover { background:var(--mint-dark); }
-  .add-cart-btn.added { background:var(--mint-dark);cursor:default; }
+  .meds-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:24px; }
 
   .symptom-card { background:var(--mint-light);border-radius:var(--radius);padding:20px 24px;
                   margin-bottom:28px;border:1.5px solid rgba(15,163,129,.2); }
@@ -271,6 +259,22 @@ const css = `
   .footer { padding:32px 40px;border-top:1px solid #e8e5df;display:flex;align-items:center;
             justify-content:space-between;color:var(--ink-soft);font-size:.85rem; }
 
+  /* Health Tips Section Styles */
+  .bg-blue-50 { background: #eff6ff; }
+  .bg-green-50 { background: #f0fdf4; }
+  .bg-orange-50 { background: #fff7ed; }
+  .bg-purple-50 { background: #faf5ff; }
+  .text-blue-800 { color: #1e40af; }
+  .text-blue-900 { color: #1e3a8a; }
+  .text-blue-700 { color: #1d4ed8; }
+  .text-green-800 { color: #166534; }
+  .text-green-700 { color: #15803d; }
+  .text-orange-800 { color: #9a3412; }
+  .text-purple-800 { color: #5b21b6; }
+  .text-purple-600 { color: #7c3aed; }
+  .bg-green-100 { background: #dcfce7; }
+  .bg-red-100 { background: #fee2e2; }
+
   @media(max-width:600px) {
     .nav { padding:0 20px; }
     .hero { padding:48px 20px 40px; }
@@ -280,10 +284,11 @@ const css = `
     .cart-panel { width:100%; }
     .how-section { padding:60px 20px; }
     .footer { flex-direction:column;gap:8px;text-align:center; }
+    .meds-grid { grid-template-columns:1fr; }
   }
 `;
 
-// ========== API Call using OpenRouter ==========
+// ========== API Call ==========
 async function analyzeSymptoms(query: string): Promise<{ result?: AnalysisResult; error?: string }> {
   try {
     const response = await fetch("/api/analyze", {
@@ -300,6 +305,15 @@ async function analyzeSymptoms(query: string): Promise<{ result?: AnalysisResult
 
     if (!data.medicines || !Array.isArray(data.medicines)) {
       return { error: "AI returned an unexpected format" };
+    }
+
+    // Add notes if not present
+    if (!data.notes) {
+      data.notes = [
+        "⚠️ Do not take medicines without consulting a doctor if symptoms persist for more than 3 days",
+        "💊 Always read the package insert before use",
+        "🚫 Avoid alcohol while on medication"
+      ];
     }
 
     return { result: data };
@@ -322,25 +336,23 @@ export default function MedAI() {
   const [checkoutStep, setCheckoutStep] = useState<number>(1);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
+  const [healthData, setHealthData] = useState<any>(null);
 
   const [address, setAddress] = useState<Address>({ name: "", line1: "", city: "", zip: "", phone: "", email: "" });
 
   const recognitionRef = useRef<any>(null);
-
   const { isSignedIn } = useAuth();
-
-
 
   // Load Razorpay SDK
   useEffect(() => {
-  const script = document.createElement("script");
-  script.src = "https://checkout.razorpay.com/v1/checkout.js";
-  script.async = true;
-  script.onload = () => console.log("✅ Razorpay script loaded");
-  script.onerror = () => console.error("❌ Razorpay script failed to load");
-  document.body.appendChild(script);
-  return () => { document.body.removeChild(script); };
-}, []);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => console.log("✅ Razorpay script loaded");
+    script.onerror = () => console.error("❌ Razorpay script failed to load");
+    document.body.appendChild(script);
+    return () => { document.body.removeChild(script); };
+  }, []);
 
   // Speech Recognition
   useEffect(() => {
@@ -381,35 +393,44 @@ export default function MedAI() {
     setResults(null);
     setApiError(null);
     setAddedIds(new Set());
+    setHealthData(null);
 
-    const { result, error } = await analyzeSymptoms(query);
-
-    if (error) {
-      setApiError(error);
-    } else if (result) {
-      setResults(result);
+    try {
+      const { result, error } = await analyzeSymptoms(query);
+      
+      if (error) {
+        setApiError(error);
+      } else if (result) {
+        setResults(result);
+      }
+      
+      try {
+        const healthResponse = await fetch("/api/health-advice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        const healthDataResult = await healthResponse.json();
+        setHealthData(healthDataResult);
+      } catch (healthError) {
+        console.error("Health tips error:", healthError);
+      }
+      
+    } catch (err) {
+      console.error("Analysis error:", err);
+      setApiError("Failed to analyze symptoms. Please try again.");
+    } finally {
+      setLoading(false);
       setTimeout(() => document.getElementById("results-anchor")?.scrollIntoView({ behavior: "smooth" }), 100);
     }
-    setLoading(false);
   };
 
-  const handlePrescriptionMedicines = async (medicines: string[]) => {
-  // Search for each medicine and add to cart
-  for (const medicineName of medicines) {
-    const response = await fetch('/api/search-medicine', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: medicineName }),
-    });
-    const medicine = await response.json();
-    if (medicine) {
+  const handlePrescriptionMedicines = async (medicines: any[]) => {
+    medicines.forEach(medicine => {
       addToCart(medicine);
-    }
-  }
-  
-  // Show success message
-  alert(`Added ${medicines.length} medicines to cart!`);
-};
+    });
+    alert(`Added ${medicines.length} medicine(s) from prescription to cart!`);
+  };
 
   const addToCart = (med: Medicine) => {
     setCart(prev => {
@@ -424,6 +445,19 @@ export default function MedAI() {
     setAddedIds(prev => new Set(prev).add(med.id));
   };
 
+  const addToCartFromMedicine = (medicine: any, quantity: number, quantityType: string) => {
+    const cartItem = {
+      ...medicine,
+      id: Date.now() + Math.random(),
+      qty: quantity,
+      price: medicine.pricePerTablet || medicine.price / 10,
+      totalPrice: (medicine.pricePerTablet || medicine.price / 10) * quantity
+    };
+    
+    setCart(prev => [...prev, cartItem]);
+    alert(`✅ Added ${quantity} ${quantityType} tablets of ${medicine.name} to cart!`);
+  };
+
   const updateQty = (id: number, delta: number) => {
     setCart(prev =>
       prev
@@ -432,182 +466,102 @@ export default function MedAI() {
     );
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const cartTotal = cart.reduce((sum, item) => sum + (item.pricePerTablet || item.price) * item.qty, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
 
   const handlePayment = async () => {
-  if (cart.length === 0) {
-    alert("Your cart is empty!");
-    return;
-  }
-
-  if (!address.name || !address.phone) {
-    alert("Please fill in your name and phone number.");
-    setCheckoutStep(1);
-    return;
-  }
-
-  if (!window.Razorpay) {
-    alert("Payment system loading. Please wait and try again.");
-    return;
-  }
-
-  setIsProcessingPayment(true);
-  try {
-    const totalAmount = Math.round((cartTotal + 4.99) * 100); // Convert to paise
-    
-    // ✅ STEP 1: Create Razorpay Order (using your existing endpoint)
-    const razorpayRes = await fetch("/api/store-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: totalAmount }),
-    });
-
-    if (!razorpayRes.ok) {
-      const err = await razorpayRes.json();
-      throw new Error(err.error || "Failed to create Razorpay order");
+    if (cart.length === 0) {
+      alert("Your cart is empty!");
+      return;
     }
 
-    const razorpayOrder = await razorpayRes.json();
-    if (!razorpayOrder.id) throw new Error("No Razorpay order ID received");
+    if (!address.name || !address.phone) {
+      alert("Please fill in your name and phone number.");
+      setCheckoutStep(1);
+      return;
+    }
 
-    console.log("✅ Razorpay order created:", razorpayOrder);
+    if (!window.Razorpay) {
+      alert("Payment system loading. Please wait and try again.");
+      return;
+    }
 
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_SfxDtJYjdnm9Bp",
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency || "INR",
-      name: "MedAI Pharmacy",
-      description: `Medicine Order - ${cart.length} items`,
-      order_id: razorpayOrder.id,
-      prefill: {
-        name: address.name,
-        email: address.email || "customer@medai.com",
-        contact: address.phone,
-      },
-      notes: {
-        delivery_address: `${address.line1}, ${address.city} ${address.zip}`,
-        medicines: cart.map(item => `${item.name} x${item.qty}`).join(", "),
-        total_items: cart.length.toString(),
-      },
-      theme: { color: "#0fa381" },
-      modal: {
-        ondismiss: () => {
-          console.log("Payment modal closed");
-          setIsProcessingPayment(false);
-        }
-      },
-      handler: async (response: any) => {
-        console.log("Payment Success:", response);
-        
-        // ✅ STEP 2: Verify Payment Signature
-        const verifyRes = await fetch("/api/verify-payment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-          }),
-        });
+    setIsProcessingPayment(true);
+    try {
+      const totalAmount = Math.round((cartTotal + 4.99) * 100);
+      
+      const razorpayRes = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: totalAmount }),
+      });
 
-        const verifyData = await verifyRes.json();
+      if (!razorpayRes.ok) {
+        const err = await razorpayRes.json();
+        throw new Error(err.error || "Failed to create Razorpay order");
+      }
 
-        if (!verifyData.success) {
-          alert("Payment verification failed. Please contact support.");
-          setIsProcessingPayment(false);
-          return;
-        }
+      const razorpayOrder = await razorpayRes.json();
+      if (!razorpayOrder.id) throw new Error("No Razorpay order ID received");
 
-        // ✅ STEP 3: Save order to Supabase
-        try {
-          const orderResponse = await fetch("/api/save-order", {
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_SfxDtJYjdnm9Bp",
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency || "INR",
+        name: "MedAI Pharmacy",
+        description: `Medicine Order - ${cart.length} items`,
+        order_id: razorpayOrder.id,
+        prefill: {
+          name: address.name,
+          email: address.email || "customer@medai.com",
+          contact: address.phone,
+        },
+        notes: {
+          delivery_address: `${address.line1}, ${address.city} ${address.zip}`,
+          medicines: cart.map(item => `${item.name} x${item.qty}`).join(", "),
+        },
+        theme: { color: "#0fa381" },
+        modal: { ondismiss: () => setIsProcessingPayment(false) },
+        handler: async (response: any) => {
+          console.log("Payment Success:", response);
+          
+          const verifyRes = await fetch("/api/verify-payment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              items: cart.map(item => ({
-                name: item.name,
-                price: item.price,
-                qty: item.qty
-              })),
-              total: cartTotal + 4.99,
-              shippingAddress: `${address.line1}, ${address.city}, ${address.zip}`,
-              customerName: address.name,
-              customerEmail: address.email || "customer@medai.com",
-              customerPhone: address.phone,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpayOrderId: response.razorpay_order_id
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
             }),
           });
 
-          const orderData = await orderResponse.json();
-          
-          if (orderResponse.ok) {
-            // ✅ STEP 4: Send email confirmation
-            try {
-              const emailResponse = await fetch("/api/send-email", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  orderId: orderData.orderId,
-                  customerName: address.name,
-                  customerEmail: address.email || "customer@medai.com",
-                  customerPhone: address.phone,
-                  items: cart.map(item => ({
-                    name: item.name,
-                    qty: item.qty,
-                    price: item.price
-                  })),
-                  total: cartTotal + 4.99,
-                  shippingAddress: `${address.line1}, ${address.city}, ${address.zip}`
-                }),
-              });
-
-              if (emailResponse.ok) {
-                console.log("Order confirmation email sent successfully");
-              }
-            } catch (emailError) {
-              console.error("Email sending error:", emailError);
-            }
-
-            alert(`Payment Successful! 🎉\nOrder ID: ${orderData.orderId?.slice(0, 8)}\nPayment ID: ${response.razorpay_payment_id}`);
-            setCart([]);
-            setAddedIds(new Set());
-            setCheckoutStep(3);
-          } else {
-            alert(`Payment succeeded but order could not be saved. Please contact support.\nPayment ID: ${response.razorpay_payment_id}`);
-            setCart([]);
-            setAddedIds(new Set());
-            setCheckoutStep(3);
+          const verifyData = await verifyRes.json();
+          if (!verifyData.success) {
+            alert("Payment verification failed.");
+            setIsProcessingPayment(false);
+            return;
           }
-        } catch (saveError) {
-          console.error("Error saving order:", saveError);
-          alert(`Payment succeeded but order saving failed. Please contact support.\nPayment ID: ${response.razorpay_payment_id}`);
+
+          alert(`Payment Successful! 🎉\nPayment ID: ${response.razorpay_payment_id}`);
           setCart([]);
           setAddedIds(new Set());
           setCheckoutStep(3);
-        }
-        
-        setIsProcessingPayment(false);
-      },
-    };
+          setIsProcessingPayment(false);
+        },
+      };
 
-    const razorpay = new window.Razorpay(options);
-    
-    razorpay.on("payment.failed", (response: any) => {
-      console.error("Payment Failed:", response.error);
-      alert(`Payment Failed: ${response.error?.description || "Please try again"}`);
+      const razorpay = new window.Razorpay(options);
+      razorpay.on("payment.failed", (response: any) => {
+        alert(`Payment failed: ${response.error?.description}`);
+        setIsProcessingPayment(false);
+      });
+      razorpay.open();
+      
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Payment failed");
       setIsProcessingPayment(false);
-    });
-    
-    razorpay.open();
-    
-  } catch (err) {
-    console.error("Payment Error:", err);
-    alert(err instanceof Error ? err.message : "Failed to initiate payment. Please try again.");
-    setIsProcessingPayment(false);
-  }
-};
+    }
+  };
 
   const resetAll = () => {
     setResults(null);
@@ -622,31 +576,27 @@ export default function MedAI() {
     <>
       <style>{css}</style>
 
-     <nav className="nav">
-  <div className="nav-logo" onClick={resetAll}>
-    ✚ <span>Medi<b style={{ color: "var(--mint)" }}>Ora</b></span>
-  </div>
-  <div className="nav-actions">
-    {!isSignedIn ? (
-      <SignInButton mode="modal">
-        <button className="cart-btn">Sign In</button>
-      </SignInButton>
-    ) : (
-      <>
-        <Link href="/dashboard" className="cart-btn" title="Dashboard">
-          👤
-        </Link>
-        <Link href="/orders" className="cart-btn" title="Orders">
-          📦
-        </Link>
-        <UserButton />
-      </>
-    )}
-    <button className="cart-btn" onClick={() => setCartOpen(true)} title="Cart">
-      🛒 {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
-    </button>
-  </div>
-</nav>
+      <nav className="nav">
+        <div className="nav-logo" onClick={resetAll}>
+          ✚ <span>Medi<b style={{ color: "var(--mint)" }}>Ora</b></span>
+        </div>
+        <div className="nav-actions">
+          {!isSignedIn ? (
+            <SignInButton mode="modal">
+              <button className="cart-btn">Sign In</button>
+            </SignInButton>
+          ) : (
+            <>
+              <Link href="/dashboard" className="cart-btn" title="Dashboard">👤</Link>
+              <Link href="/orders" className="cart-btn" title="Orders">📦</Link>
+              <UserButton />
+            </>
+          )}
+          <button className="cart-btn" onClick={() => setCartOpen(true)} title="Cart">
+            🛒 {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
+          </button>
+        </div>
+      </nav>
 
       <section className="hero">
         <div className="hero-badge">✦ AI-Powered Pharmacy</div>
@@ -656,7 +606,8 @@ export default function MedAI() {
         <div className="search-box">
           <div className="search-input-wrap">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
             <input
               className="search-input"
@@ -665,21 +616,23 @@ export default function MedAI() {
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleAnalyze()}
             />
-             {/* Add Prescription Scanner Button */}
-  <PrescriptionScanner onMedicinesDetected={handlePrescriptionMedicines} />
-  
-  <button className="analyze-btn" onClick={handleAnalyze} disabled={!query.trim() || loading}>
-    {loading ? "Analyzing…" : "Find Medicine →"}
-  </button>
           </div>
+
           <div className="search-actions">
-            <button className={`voice-btn ${recording ? "recording" : ""}`} onClick={toggleVoice}>
-              {recording ? "🔴 Recording… tap to stop" : "🎙️ Describe with voice"}
-            </button>
+            <div className="flex gap-2 flex-1">
+              <button className={`voice-btn flex-1 ${recording ? "recording" : ""}`} onClick={toggleVoice}>
+                {recording ? "🔴 Recording… tap to stop" : "🎙️ Describe with voice"}
+              </button>
+              <PrescriptionScanner 
+                onMedicinesDetected={handlePrescriptionMedicines}
+                onSearchQuery={handleAnalyze}
+              />
+            </div>
             <button className="analyze-btn" onClick={handleAnalyze} disabled={!query.trim() || loading}>
               {loading ? "Analyzing…" : "Find Medicine →"}
             </button>
           </div>
+          
           {transcript && (
             <div className="voice-transcript">
               <span>🎤</span>
@@ -728,32 +681,114 @@ export default function MedAI() {
             </div>
           )}
 
+          {/* Medicine Cards with Quantity Selector */}
           <div className="meds-grid">
-            {results.medicines.map((med) => (
-              <div key={med.id} className={`med-card ${med.recommended ? "recommended" : ""}`}>
-                <div className="med-icon">{med.emoji}</div>
-                <div className="med-body">
-                  <div className="med-name">{med.name}</div>
-                  <div className="med-type">{med.type}</div>
-                  <div className="med-desc">{med.description}</div>
-                  <div className="med-tags">
-                    {med.tags.map((tag, idx) => (
-                      <span key={idx} className="tag">{tag}</span>
-                    ))}
-                  </div>
-                  <div className="med-footer">
-                    <div className="med-price">₹{med.price.toFixed(2)} <span>/ pack</span></div>
-                    <button
-                      className={`add-cart-btn ${addedIds.has(med.id) ? "added" : ""}`}
-                      onClick={() => !addedIds.has(med.id) && addToCart(med)}
-                    >
-                      {addedIds.has(med.id) ? "✓ Added" : "Add to Cart"}
-                    </button>
-                  </div>
-                </div>
-              </div>
+            {results.medicines.map((med, idx) => (
+              <MedicineCard
+                key={med.id || idx}
+                medicine={med}
+                onAddToCart={addToCartFromMedicine}
+                isRecommended={med.recommended || idx === 0}
+              />
             ))}
           </div>
+
+          {/* Safety Notes */}
+          {results.notes && results.notes.length > 0 && (
+            <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+              <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Important Safety Notes</h4>
+              <ul className="space-y-1">
+                {results.notes.map((note: string, idx: number) => (
+                  <li key={idx} className="text-sm text-yellow-700">• {note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Health Tips & Diet Section */}
+          {healthData && (
+            <div className="mt-8 space-y-6">
+              {healthData.disease && (
+                <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl">📋</span>
+                    <h3 className="font-bold text-lg text-blue-800">बीमारी की जानकारी</h3>
+                  </div>
+                  <h4 className="font-semibold text-blue-900">{healthData.disease.name}</h4>
+                  <p className="text-blue-700 text-sm mt-1">{healthData.disease.description}</p>
+                </div>
+              )}
+
+              {healthData.healthTips && healthData.healthTips.length > 0 && (
+                <div className="bg-green-50 rounded-xl p-5 border border-green-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl">💚</span>
+                    <h3 className="font-bold text-lg text-green-800">स्वास्थ्य सुझाव</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {healthData.healthTips.map((tip: string, idx: number) => (
+                      <div key={idx} className="flex gap-2 items-start">
+                        <span className="text-green-600 mt-0.5">✓</span>
+                        <span className="text-gray-700 text-sm">{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {healthData.dietPlan && (
+                <div className="bg-orange-50 rounded-xl p-5 border border-orange-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl">🥗</span>
+                    <h3 className="font-bold text-lg text-orange-800">आहार योजना</h3>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <p className="font-semibold text-green-700 mb-1">✅ क्या खाएं:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {healthData.dietPlan.foodsToEat.map((food: string, idx: number) => (
+                        <span key={idx} className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs">
+                          {food}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <p className="font-semibold text-red-700 mb-1">❌ क्या न खाएं:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {healthData.dietPlan.foodsToAvoid.map((food: string, idx: number) => (
+                        <span key={idx} className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs">
+                          {food}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-gray-700 text-sm bg-white/50 p-3 rounded-lg mt-2">
+                    {healthData.dietPlan.recommendations}
+                  </p>
+                </div>
+              )}
+
+              {healthData.lifestyleAdvice && healthData.lifestyleAdvice.length > 0 && (
+                <div className="bg-purple-50 rounded-xl p-5 border border-purple-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl">🧘</span>
+                    <h3 className="font-bold text-lg text-purple-800">जीवनशैली सुझाव</h3>
+                  </div>
+                  <ul className="space-y-2">
+                    {healthData.lifestyleAdvice.map((advice: string, idx: number) => (
+                      <li key={idx} className="flex gap-2 items-start">
+                        <span className="text-purple-600">•</span>
+                        <span className="text-gray-700 text-sm">{advice}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -778,17 +813,17 @@ export default function MedAI() {
       )}
 
       <footer className="footer">
-  <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
-    <span>© {new Date().getFullYear()} MedAI. All rights reserved.</span>
-    <div className="flex gap-6">
-      <Link href="/privacy" className="hover:text-mint transition">Privacy</Link>
-      <Link href="/terms" className="hover:text-mint transition">Terms</Link>
-      <Link href="/refund" className="hover:text-mint transition">Refund</Link>
-      <Link href="/disclaimer" className="hover:text-mint transition">Disclaimer</Link>
-    </div>
-    <span>Not a substitute for professional medical advice.</span>
-  </div>
-</footer>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
+          <span>© {new Date().getFullYear()} MedAI. All rights reserved.</span>
+          <div className="flex gap-6">
+            <Link href="/privacy" className="hover:text-mint transition">Privacy</Link>
+            <Link href="/terms" className="hover:text-mint transition">Terms</Link>
+            <Link href="/refund" className="hover:text-mint transition">Refund</Link>
+            <Link href="/disclaimer" className="hover:text-mint transition">Disclaimer</Link>
+          </div>
+          <span>Not a substitute for professional medical advice.</span>
+        </div>
+      </footer>
 
       {/* Cart Panel */}
       {cartOpen && (
@@ -811,7 +846,7 @@ export default function MedAI() {
                     <div className="cart-item-icon">{item.emoji}</div>
                     <div className="cart-item-info">
                       <div className="cart-item-name">{item.name}</div>
-                      <div className="cart-item-price">₹{(item.price * item.qty).toFixed(2)}</div>
+                      <div className="cart-item-price">₹{((item.pricePerTablet || item.price) * item.qty).toFixed(2)}</div>
                     </div>
                     <div className="cart-item-qty">
                       <button className="qty-btn" onClick={() => updateQty(item.id, -1)}>−</button>
