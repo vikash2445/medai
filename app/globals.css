@@ -31,6 +31,17 @@
 .text-ink-soft { color: var(--ink-soft); }
 .hover\:bg-mint-dark:hover { background: var(--mint-dark); }
 .hover\:text-mint-dark:hover { color: var(--mint-dark); }
+/* Health Tips Section */
+.bg-blue-50 { background: #eff6ff; }
+.bg-green-50 { background: #f0fdf4; }
+.bg-orange-50 { background: #fff7ed; }
+.bg-purple-50 { background: #faf5ff; }
+
+.text-blue-800 { color: #1e40af; }
+.text-green-800 { color: #166534; }
+.text-orange-800 { color: #9a3412; }
+.text-purple-800 { color: #5b21b6; }
+
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -697,6 +708,8 @@ body {
   gap: 8px;
 }
 
+
+
 .qty-btn {
   background: var(--stone);
   border: none;
@@ -977,6 +990,43 @@ body {
   justify-content: space-between;
   color: var(--ink-soft);
   font-size: 0.85rem;
+}
+
+
+/* Modern Card Styles */
+.group:hover {
+  transform: translateY(-4px);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Gradient Backgrounds */
+.bg-gradient-to-r {
+  background-image: linear-gradient(to right, var(--tw-gradient-stops));
+}
+
+.from-mint {
+  --tw-gradient-from: #0fa381;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(15, 163, 129, 0));
+}
+
+.to-mint-dark {
+  --tw-gradient-to: #0a7860;
+}
+
+/* Ring for Recommended Cards */
+.ring-2 {
+  box-shadow: 0 0 0 2px var(--mint);
+}
+
+.ring-mint {
+  --tw-ring-color: #0fa381;
 }
 
 /* Responsive */

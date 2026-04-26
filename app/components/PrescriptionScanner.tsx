@@ -2,18 +2,8 @@
 
 import { useState, useRef } from 'react';
 import Tesseract from 'tesseract.js';
-
-interface Medicine {
-  id: number;
-  name: string;
-  type: string;
-  emoji: string;
-  price: number;
-  description: string;
-  tags: string[];
-  recommended?: boolean;
-  drugName?: string;
-}
+import { preprocessImage } from '../lib/imagePreprocessing';
+import { medicalDictionary, calculateConfidence } from '../lib/medicalDictionary';
 
 interface PrescriptionScannerProps {
   onMedicinesDetected: (medicines: any[]) => void;
@@ -58,11 +48,17 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     setStep('📷 Reading prescription image...');
 
     try {
-      // Step 1: Extract text from image using Tesseract OCR
+      // Step 1: Preprocess the image for better OCR accuracy
+      setStep('🔧 Enhancing image quality...');
+      setProgress(15);
+      
+      const processedFile = await preprocessImage(file);
+      
+      // Step 2: Extract text from image using Tesseract OCR with optimized settings
       setStep('🔍 Extracting text from prescription...');
       setProgress(20);
       
-      const result = await Tesseract.recognize(file, 'eng', {
+      const result = await Tesseract.recognize(processedFile, 'eng', {
         logger: (m) => {
           if (m.status === 'recognizing text') {
             const progressVal = 20 + Math.floor(m.progress * 50);
@@ -71,10 +67,15 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
         },
       });
       
-      const text = result.data.text;
-      setExtractedText(text);
-      console.log('Extracted text:', text);
+      let text = result.data.text;
+      console.log('Raw extracted text:', text);
+      
+      // Step 3: Clean and correct OCR text using medical dictionary
+      setStep('🧹 Cleaning extracted text...');
       setProgress(70);
+      
+      text = applyMedicalCorrections(text);
+      setExtractedText(text);
       
       if (!text || text.trim().length < 10) {
         alert('Could not read text from prescription. Please ensure the image is clear and well-lit.');
@@ -82,7 +83,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
         return;
       }
 
-      // Step 2: Extract medicine names and analyze prescription using AI
+      // Step 4: Extract medicine names and analyze prescription using AI
       setStep('🤖 AI analyzing prescription...');
       setProgress(80);
       
@@ -91,24 +92,46 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
       setProgress(95);
       
       if (analysis.medicines && analysis.medicines.length > 0) {
-        // Format medicines for cart
-        const medicineResults = analysis.medicines.map((med: any, idx: number) => ({
-          id: Date.now() + idx,
-          name: med.name,
-          type: med.type || 'Prescribed',
-          emoji: getMedicineEmoji(med.type),
-          price: 49.99,
-          description: med.purpose || med.description || `Prescribed for ${analysis.disease?.name || 'your condition'}`,
-          tags: [med.type || 'Prescription', med.purpose?.split(' ')[0] || 'Medicine'],
-          recommended: idx === 0,
-          drugName: med.name.toLowerCase().split(' ')[0],
-          dosage: med.dosage,
-          duration: med.duration
-        }));
+        setStep('✅ Verifying medicines...');
         
-        onMedicinesDetected(medicineResults);
+        const enhancedMedicines = analysis.medicines.map((med: any, idx: number) => {
+          const dictMatch = medicalDictionary.findBestMatch(med.name);
+          
+          return {
+            id: Date.now() + idx,
+            name: dictMatch?.medicine || med.name,
+            type: dictMatch?.info?.type || med.type || 'Prescribed',
+            emoji: getMedicineEmoji(dictMatch?.info?.type || med.type),
+            price: (dictMatch?.info?.pricePerTablet || 49.99) * 10,
+            description: med.purpose || med.description || `Prescribed for ${analysis.disease?.name || 'your condition'}`,
+            tags: [dictMatch?.info?.category || med.type || 'Prescription', 'Medicine'],
+            recommended: idx === 0,
+            drugName: (dictMatch?.medicine || med.name).toLowerCase().split(' ')[0],
+            dosage: med.dosage || dictMatch?.info?.defaultDosage || 'As prescribed',
+            duration: med.duration,
+            frequency: med.frequency,
+            usage: {
+              frequency: med.frequency || 'As prescribed',
+              duration: med.duration || '5 days',
+              totalTablets: med.totalTablets || 10
+            },
+            quantitySelector: {
+              allowLoose: med.isAntibiotic ? false : true,
+              tabletsPerStrip: 10,
+              minQuantity: 1,
+              maxQuantity: 30,
+              defaultQuantity: med.totalTablets || 10,
+              step: 1,
+              recommendedType: med.isAntibiotic ? 'strip' : 'loose',
+              note: med.isAntibiotic ? '⚠️ Complete full course is required. Do not stop early.' : 'You can buy loose tablets or full strip'
+            },
+            pricePerTablet: dictMatch?.info?.pricePerTablet || 5,
+            isAntibiotic: med.type?.toLowerCase() === 'antibiotic' || false
+          };
+        });
         
-        // Set search query
+        onMedicinesDetected(enhancedMedicines);
+        
         if (onSearchQuery && analysis.disease?.name) {
           onSearchQuery(`Treatment for ${analysis.disease.name}`);
         }
@@ -120,8 +143,8 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
           setAnalysisResult(null);
         }, 1500);
       } else {
-        // Fallback: extract medicine names using regex
-        const medicines = extractMedicineNamesRegex(text);
+        setStep('🔍 Searching for medicines...');
+        const medicines = extractMedicineNamesWithDictionary(text);
         if (medicines.length > 0) {
           const medicineResults = await searchMedicines(medicines);
           onMedicinesDetected(medicineResults);
@@ -141,6 +164,53 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     }
   };
 
+  // Helper function to apply medical corrections to OCR text
+  function applyMedicalCorrections(text: string): string {
+    const corrections: Record<string, string> = {
+      'crocim': 'Crocin',
+      'crocine': 'Crocin',
+      'paraetamol': 'Paracetamol',
+      'paracetmol': 'Paracetamol',
+      'ibuprohen': 'Ibuprofen',
+      'ibuprofin': 'Ibuprofen',
+      'ceterizine': 'Cetirizine',
+      'cetrizine': 'Cetirizine',
+      'omeprazol': 'Omeprazole',
+      'azythromycin': 'Azithromycin',
+      'amoxycillin': 'Amoxicillin',
+      'levectrizine': 'Levocetirizine',
+    };
+    
+    let corrected = text;
+    for (const [misspelled, correct] of Object.entries(corrections)) {
+      const regex = new RegExp(misspelled, 'gi');
+      corrected = corrected.replace(regex, correct);
+    }
+    
+    return corrected;
+  }
+
+  // Enhanced medicine extraction with medical dictionary
+  function extractMedicineNamesWithDictionary(text: string): string[] {
+    const commonMedicines = [
+      'Paracetamol', 'Ibuprofen', 'Cetirizine', 'Loratadine', 'Omeprazole',
+      'Amoxicillin', 'Azithromycin', 'Dolo', 'Crocin', 'Combiflam',
+      'Levocetirizine', 'Montelukast', 'Pantoprazole', 'Rabeprazole',
+      'Aspirin', 'Diclofenac', 'Metformin', 'Amlodipine', 'Atorvastatin'
+    ];
+    
+    const found: string[] = [];
+    const lowerText = text.toLowerCase();
+    
+    for (const med of commonMedicines) {
+      if (lowerText.includes(med.toLowerCase())) {
+        found.push(med);
+      }
+    }
+    
+    return [...new Set(found)];
+  }
+
   const analyzePrescriptionWithAI = async (text: string): Promise<any> => {
     try {
       const response = await fetch('/api/analyze-prescription', {
@@ -157,7 +227,6 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
       return data;
     } catch (error) {
       console.error('AI Analysis error:', error);
-      // Return fallback analysis
       return getFallbackAnalysis(text);
     }
   };
@@ -186,8 +255,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
         { name: "Paracetamol 500mg", type: "Analgesic", dosage: "1 tablet every 6 hours", duration: "3 days", purpose: "Pain relief" }
       ];
     } else {
-      // Extract any medicine names from text
-      const foundMeds = extractMedicineNamesRegex(text);
+      const foundMeds = extractMedicineNamesWithDictionary(text);
       medicines = foundMeds.map((name, idx) => ({
         name: `${name} 500mg`,
         type: "Medicine",
@@ -222,25 +290,6 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     };
   };
 
-  const extractMedicineNamesRegex = (text: string): string[] => {
-    const commonMedicines = [
-      'paracetamol', 'ibuprofen', 'cetirizine', 'loratadine', 'omeprazole',
-      'amoxicillin', 'azithromycin', 'dolo', 'crocin', 'combiflam', 'levocetirizine',
-      'montelukast', 'pantoprazole', 'rabeprazole', 'aspirin', 'diclofenac'
-    ];
-    
-    const lowerText = text.toLowerCase();
-    const found: string[] = [];
-    
-    for (const med of commonMedicines) {
-      if (lowerText.includes(med)) {
-        found.push(med.charAt(0).toUpperCase() + med.slice(1));
-      }
-    }
-    
-    return found;
-  };
-
   const searchMedicines = async (medicineNames: string[]): Promise<any[]> => {
     const results: any[] = [];
     
@@ -256,7 +305,6 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
         if (data.medicines && data.medicines.length > 0) {
           results.push({ ...data.medicines[0], id: Date.now() + i });
         } else {
-          // Fallback medicine
           results.push({
             id: Date.now() + i,
             name: `${name} 500mg`,
@@ -289,7 +337,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
   };
 
   const getMedicineEmoji = (type: string): string => {
-    const t = type.toLowerCase();
+    const t = type?.toLowerCase() || '';
     if (t.includes('antibiotic')) return '💊';
     if (t.includes('pain')) return '💊';
     if (t.includes('cough')) return '🍯';

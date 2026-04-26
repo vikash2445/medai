@@ -5,6 +5,7 @@ import { SignInButton, UserButton, useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import PrescriptionScanner from './components/PrescriptionScanner';
 import MedicineCard from './components/MedicineCard';
+import EnhancedHealthTip from './components/EnhancedHealthTip';
 
 // ========== Web Speech API Type Declarations ==========
 interface SpeechRecognitionEvent extends Event {
@@ -51,20 +52,24 @@ interface Medicine {
   recommended?: boolean;
   drugName?: string;
   imageQuery?: string;
-  // Add these new optional fields
+  image?: string;
   dosage?: string;
   category?: string;
   isAntibiotic?: boolean;
-  usage?: { frequency: string; duration: string; totalTablets: number };
-  quantitySelector?: { 
-    allowLoose: boolean; 
-    tabletsPerStrip: number; 
-    minQuantity: number; 
-    maxQuantity: number; 
-    defaultQuantity: number; 
-    step: number; 
-    recommendedType: string; 
-    note: string 
+  usage?: {
+    frequency: string;
+    duration: string;
+    totalTablets: number;
+  };
+  quantitySelector?: {
+    allowLoose: boolean;
+    tabletsPerStrip: number;
+    minQuantity: number;
+    maxQuantity: number;
+    defaultQuantity: number;
+    step: number;
+    recommendedType: string;
+    note: string;
   };
   pricePerTablet?: number;
   estimatedTotalPrice?: number;
@@ -187,6 +192,119 @@ const css = `
   .symptom-card h3 { font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
                      color:var(--mint-dark);margin-bottom:8px; }
 
+  /* Medicine Card Image Styles */
+  .med-img-wrap {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    background: var(--mint-light);
+    border-radius: var(--radius) var(--radius) 0 0;
+    overflow: hidden;
+  }
+  .med-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+  .med-card:hover .med-img {
+    transform: scale(1.05);
+  }
+  .med-card {
+    background: white;
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid var(--stone);
+  }
+  .med-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--card-shadow);
+    border-color: var(--mint);
+  }
+  .med-card.recommended {
+    border: 2px solid var(--mint);
+  }
+  .rec-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: var(--mint);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    z-index: 10;
+  }
+  .med-body {
+    padding: 16px;
+  }
+  .med-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .med-type {
+    font-size: 0.75rem;
+    color: var(--mint-dark);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .med-desc {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+    line-height: 1.4;
+  }
+  .med-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .tag {
+    background: var(--stone);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+  }
+  .med-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--stone);
+  }
+  .med-price {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--mint-dark);
+  }
+  .med-price span {
+    font-size: 0.7rem;
+    font-weight: normal;
+    color: var(--ink-soft);
+  }
+  .add-cart-btn {
+    background: var(--mint);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .add-cart-btn:hover {
+    background: var(--mint-dark);
+  }
+  .add-cart-btn.added {
+    background: var(--mint-dark);
+  }
+
   .cart-overlay { position:fixed;inset:0;background:rgba(26,26,46,.4);z-index:200;animation:fadeIn .2s; }
   @keyframes fadeIn { from{opacity:0}to{opacity:1} }
   .cart-panel { position:fixed;right:0;top:0;bottom:0;width:440px;background:#fff;
@@ -291,6 +409,42 @@ const css = `
 // ========== API Call ==========
 async function analyzeSymptoms(query: string): Promise<{ result?: AnalysisResult; error?: string }> {
   try {
+    // First, try to search from Supabase database
+    console.log("🔍 Searching database for:", query);
+    
+    const dbResponse = await fetch("/api/search-medicine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+
+    const dbData = await dbResponse.json();
+
+    if (dbResponse.ok && dbData.medicines && dbData.medicines.length > 0) {
+      console.log("✅ Found medicines in database:", dbData.medicines.length);
+      
+      // Format database results
+      const result: AnalysisResult = {
+        summary: `Based on your search "${query}", here are the medicines we found. ${dbData.usedFallback ? 'We showed general recommendations since no exact match was found.' : ''}`,
+        medicines: dbData.medicines.map((med: any, idx: number) => ({
+          ...med,
+          id: med.id,
+          recommended: idx === 0,
+        })),
+        notes: [
+          "⚠️ Always read the label before use",
+          "💊 Complete the full course as prescribed",
+          "🚫 Avoid alcohol while on medication",
+          "📞 Consult doctor if symptoms persist for more than 3 days"
+        ]
+      };
+      
+      return { result };
+    }
+
+    // If database search fails or returns no results, fallback to Groq AI
+    console.log("🔄 No database results, falling back to Groq AI");
+    
     const response = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -307,17 +461,9 @@ async function analyzeSymptoms(query: string): Promise<{ result?: AnalysisResult
       return { error: "AI returned an unexpected format" };
     }
 
-    // Add notes if not present
-    if (!data.notes) {
-      data.notes = [
-        "⚠️ Do not take medicines without consulting a doctor if symptoms persist for more than 3 days",
-        "💊 Always read the package insert before use",
-        "🚫 Avoid alcohol while on medication"
-      ];
-    }
-
     return { result: data };
   } catch (err) {
+    console.error("Analysis error:", err);
     return { error: `Network error: ${(err as Error).message}` };
   }
 }
@@ -572,6 +718,15 @@ export default function MedAI() {
     setAddedIds(new Set());
   };
 
+  // Helper function to get image URL with fallback
+  const getImageUrl = (medicine: Medicine) => {
+    if (medicine.image) {
+      return medicine.image;
+    }
+    // Fallback to placeholder
+    return `https://placehold.co/400x300/0fa381/white?text=${encodeURIComponent(medicine.name)}`;
+  };
+
   return (
     <>
       <style>{css}</style>
@@ -599,48 +754,53 @@ export default function MedAI() {
       </nav>
 
       <section className="hero">
-        <div className="hero-badge">✦ AI-Powered Pharmacy</div>
-        <h1>Describe your symptoms,<br />get the <em>right medicine</em> delivered</h1>
-        <p>Tell us how you feel — type or speak — and our AI recommends the best over-the-counter treatment for you.</p>
+  <div className="hero-badge">✦ AI-Powered Pharmacy</div>
+  <h1>Describe your symptoms,<br />get the <em>right medicine</em> delivered</h1>
+  <p>Tell us how you feel — type or speak — and our AI recommends the best over-the-counter treatment for you.</p>
+</section>
 
-        <div className="search-box">
-          <div className="search-input-wrap">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              className="search-input"
-              placeholder="e.g. I have a terrible headache and mild fever since this morning..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleAnalyze()}
-            />
-          </div>
+{/* ✨ Enhanced Daily Health Tip */}
+<div className="max-w-720 mx-auto px-4 mb-6">
+  <EnhancedHealthTip />
+</div>
 
-          <div className="search-actions">
-            <div className="flex gap-2 flex-1">
-              <button className={`voice-btn flex-1 ${recording ? "recording" : ""}`} onClick={toggleVoice}>
-                {recording ? "🔴 Recording… tap to stop" : "🎙️ Describe with voice"}
-              </button>
-              <PrescriptionScanner 
-                onMedicinesDetected={handlePrescriptionMedicines}
-                onSearchQuery={handleAnalyze}
-              />
-            </div>
-            <button className="analyze-btn" onClick={handleAnalyze} disabled={!query.trim() || loading}>
-              {loading ? "Analyzing…" : "Find Medicine →"}
-            </button>
-          </div>
-          
-          {transcript && (
-            <div className="voice-transcript">
-              <span>🎤</span>
-              <span><b>Heard:</b> {transcript}</span>
-            </div>
-          )}
-        </div>
-      </section>
+<div className="search-box">
+  <div className="search-input-wrap">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.35-4.35" />
+    </svg>
+    <input
+      className="search-input"
+      placeholder="e.g. I have a terrible headache and mild fever since this morning..."
+      value={query}
+      onChange={e => setQuery(e.target.value)}
+      onKeyDown={e => e.key === "Enter" && handleAnalyze()}
+    />
+  </div>
+
+  <div className="search-actions">
+    <div className="flex gap-2 flex-1">
+      <button className={`voice-btn flex-1 ${recording ? "recording" : ""}`} onClick={toggleVoice}>
+        {recording ? "🔴 Recording… tap to stop" : "🎙️ Describe with voice"}
+      </button>
+      <PrescriptionScanner 
+        onMedicinesDetected={handlePrescriptionMedicines}
+        onSearchQuery={handleAnalyze}
+      />
+    </div>
+    <button className="analyze-btn" onClick={handleAnalyze} disabled={!query.trim() || loading}>
+      {loading ? "Analyzing…" : "Find Medicine →"}
+    </button>
+  </div>
+  
+  {transcript && (
+    <div className="voice-transcript">
+      <span>🎤</span>
+      <span><b>Heard:</b> {transcript}</span>
+    </div>
+  )}
+</div>
 
       <div id="results-anchor" />
 
@@ -681,15 +841,49 @@ export default function MedAI() {
             </div>
           )}
 
-          {/* Medicine Cards with Quantity Selector */}
+          {/* Medicine Cards with Images */}
           <div className="meds-grid">
             {results.medicines.map((med, idx) => (
-              <MedicineCard
-                key={med.id || idx}
-                medicine={med}
-                onAddToCart={addToCartFromMedicine}
-                isRecommended={med.recommended || idx === 0}
-              />
+              <div key={med.id || idx} className={`med-card ${med.recommended ? "recommended" : ""}`}>
+                {/* Image Section */}
+                <div className="med-img-wrap">
+                  <img
+                    src={getImageUrl(med)}
+                    alt={med.name}
+                    className="med-img"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = `https://placehold.co/400x300/0fa381/white?text=${encodeURIComponent(med.name)}`;
+                    }}
+                  />
+                  {med.recommended && (
+                    <div className="rec-badge">⭐ Best Match</div>
+                  )}
+                </div>
+                
+                {/* Medicine Info */}
+                <div className="med-body">
+                  <div className="med-name">{med.name}</div>
+                  <div className="med-type">{med.type || med.category}</div>
+                  <div className="med-desc">{med.description}</div>
+                  <div className="med-tags">
+                    {med.tags?.map((tag: string, tagIdx: number) => (
+                      <span key={tagIdx} className="tag">{tag}</span>
+                    ))}
+                  </div>
+                  <div className="med-footer">
+                    <div className="med-price">
+                      ₹{med.price.toFixed(2)} <span>/ pack</span>
+                    </div>
+                    <button
+                      className={`add-cart-btn ${addedIds.has(med.id) ? "added" : ""}`}
+                      onClick={() => !addedIds.has(med.id) && addToCart(med)}
+                    >
+                      {addedIds.has(med.id) ? "✓ Added" : "Add to Cart"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
 
@@ -706,89 +900,220 @@ export default function MedAI() {
           )}
 
           {/* Health Tips & Diet Section */}
-          {healthData && (
-            <div className="mt-8 space-y-6">
-              {healthData.disease && (
-                <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-2xl">📋</span>
-                    <h3 className="font-bold text-lg text-blue-800">बीमारी की जानकारी</h3>
-                  </div>
-                  <h4 className="font-semibold text-blue-900">{healthData.disease.name}</h4>
-                  <p className="text-blue-700 text-sm mt-1">{healthData.disease.description}</p>
-                </div>
-              )}
+{healthData && (
+  <div className="mt-8 space-y-6">
+    {/* Disease Info */}
+    {healthData.disease && (
+      <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">📋</span>
+          <h3 className="font-bold text-lg text-blue-800">बीमारी की जानकारी</h3>
+        </div>
+        <h4 className="font-semibold text-blue-900">{healthData.disease.name}</h4>
+        <p className="text-blue-700 text-sm mt-1">{healthData.disease.description}</p>
+        {healthData.disease.severity && (
+          <div className="mt-2 inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
+            Severity: {healthData.disease.severity}
+          </div>
+        )}
+      </div>
+    )}
 
-              {healthData.healthTips && healthData.healthTips.length > 0 && (
-                <div className="bg-green-50 rounded-xl p-5 border border-green-200">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">💚</span>
-                    <h3 className="font-bold text-lg text-green-800">स्वास्थ्य सुझाव</h3>
-                  </div>
-                  <div className="space-y-2">
-                    {healthData.healthTips.map((tip: string, idx: number) => (
-                      <div key={idx} className="flex gap-2 items-start">
-                        <span className="text-green-600 mt-0.5">✓</span>
-                        <span className="text-gray-700 text-sm">{tip}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+    {/* Symptoms */}
+    {healthData.symptoms && (
+      <div className="bg-purple-50 rounded-xl p-5 border border-purple-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">📝</span>
+          <h3 className="font-bold text-lg text-purple-800">लक्षण</h3>
+        </div>
+        {healthData.symptoms.common && healthData.symptoms.common.length > 0 && (
+          <>
+            <p className="font-semibold text-purple-700 mb-2">सामान्य लक्षण:</p>
+            <ul className="list-disc pl-5 mb-3">
+              {healthData.symptoms.common.map((symptom: string, idx: number) => (
+                <li key={idx} className="text-gray-700 text-sm">{symptom}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {healthData.symptoms.warning && healthData.symptoms.warning.length > 0 && (
+          <>
+            <p className="font-semibold text-red-700 mb-2">⚠️ खतरनाक लक्षण:</p>
+            <ul className="list-disc pl-5">
+              {healthData.symptoms.warning.map((warning: string, idx: number) => (
+                <li key={idx} className="text-red-600 text-sm">{warning}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    )}
 
-              {healthData.dietPlan && (
-                <div className="bg-orange-50 rounded-xl p-5 border border-orange-200">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">🥗</span>
-                    <h3 className="font-bold text-lg text-orange-800">आहार योजना</h3>
-                  </div>
-                  
-                  <div className="mb-3">
-                    <p className="font-semibold text-green-700 mb-1">✅ क्या खाएं:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {healthData.dietPlan.foodsToEat.map((food: string, idx: number) => (
-                        <span key={idx} className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs">
-                          {food}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <p className="font-semibold text-red-700 mb-1">❌ क्या न खाएं:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {healthData.dietPlan.foodsToAvoid.map((food: string, idx: number) => (
-                        <span key={idx} className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs">
-                          {food}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="text-gray-700 text-sm bg-white/50 p-3 rounded-lg mt-2">
-                    {healthData.dietPlan.recommendations}
-                  </p>
-                </div>
-              )}
-
-              {healthData.lifestyleAdvice && healthData.lifestyleAdvice.length > 0 && (
-                <div className="bg-purple-50 rounded-xl p-5 border border-purple-200">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">🧘</span>
-                    <h3 className="font-bold text-lg text-purple-800">जीवनशैली सुझाव</h3>
-                  </div>
-                  <ul className="space-y-2">
-                    {healthData.lifestyleAdvice.map((advice: string, idx: number) => (
-                      <li key={idx} className="flex gap-2 items-start">
-                        <span className="text-purple-600">•</span>
-                        <span className="text-gray-700 text-sm">{advice}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+    {/* Immediate Relief */}
+    {healthData.immediateRelief && (
+      <div className="bg-green-50 rounded-xl p-5 border border-green-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">⚡</span>
+          <h3 className="font-bold text-lg text-green-800">{healthData.immediateRelief.title || "तुरंत राहत के उपाय"}</h3>
+        </div>
+        <div className="space-y-3">
+          {healthData.immediateRelief.steps?.map((step: any, idx: number) => (
+            <div key={idx} className="bg-white rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">{step.step}</span>
+                <span className="font-semibold text-gray-800">{step.action}</span>
+              </div>
+              <p className="text-xs text-gray-500 ml-8">⏱️ {step.duration}</p>
+              {step.tip && <p className="text-xs text-green-600 mt-1 ml-8">💡 {step.tip}</p>}
             </div>
-          )}
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Home Remedies */}
+    {healthData.homeRemedies && healthData.homeRemedies.length > 0 && (
+      <div className="bg-yellow-50 rounded-xl p-5 border border-yellow-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">🏠</span>
+          <h3 className="font-bold text-lg text-yellow-800">घरेलू उपाय</h3>
+        </div>
+        <div className="space-y-4">
+          {healthData.homeRemedies.map((remedy: any, idx: number) => (
+            <div key={idx} className="bg-white rounded-lg p-3">
+              <h4 className="font-semibold text-yellow-800">{remedy.name}</h4>
+              <p className="text-sm text-gray-700 mt-1"><strong>सामग्री:</strong> {remedy.ingredients?.join(", ")}</p>
+              <p className="text-sm text-gray-700 mt-1"><strong>विधि:</strong> {remedy.howTo}</p>
+              <p className="text-xs text-gray-500 mt-1">⏰ {remedy.frequency} | ✨ {remedy.effectiveIn}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Diet Plan */}
+    {healthData.dietPlan && (
+      <div className="bg-orange-50 rounded-xl p-5 border border-orange-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">🥗</span>
+          <h3 className="font-bold text-lg text-orange-800">आहार योजना</h3>
+        </div>
+
+        {healthData.dietPlan.healingFoods && healthData.dietPlan.healingFoods.length > 0 && (
+          <div className="mb-3">
+            <p className="font-semibold text-green-700 mb-1">✅ फायदेमंद खाद्य पदार्थ:</p>
+            <div className="space-y-2">
+              {healthData.dietPlan.healingFoods.map((food: any, idx: number) => (
+                <div key={idx} className="bg-white rounded-lg p-2">
+                  <p className="font-medium text-gray-800">{food.food}</p>
+                  <p className="text-xs text-gray-600">{food.benefit}</p>
+                  <p className="text-xs text-green-600">मात्रा: {food.howMuch}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {healthData.dietPlan.avoidFoods && healthData.dietPlan.avoidFoods.length > 0 && (
+          <div className="mb-3">
+            <p className="font-semibold text-red-700 mb-1">❌ न खाएं:</p>
+            <div className="space-y-2">
+              {healthData.dietPlan.avoidFoods.map((food: any, idx: number) => (
+                <div key={idx} className="bg-white rounded-lg p-2">
+                  <p className="font-medium text-gray-800">{food.food}</p>
+                  <p className="text-xs text-red-600">{food.reason}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {healthData.dietPlan.mealPlan && (
+          <div className="mt-3">
+            <p className="font-semibold text-orange-700 mb-1">📅 दिन का आहार:</p>
+            <div className="bg-white rounded-lg p-3 space-y-1">
+              <p className="text-sm"><strong>सुबह:</strong> {healthData.dietPlan.mealPlan.morning}</p>
+              <p className="text-sm"><strong>दोपहर:</strong> {healthData.dietPlan.mealPlan.afternoon}</p>
+              <p className="text-sm"><strong>शाम:</strong> {healthData.dietPlan.mealPlan.evening}</p>
+              <p className="text-sm"><strong>रात:</strong> {healthData.dietPlan.mealPlan.night}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Recovery Plan */}
+    {healthData.recoveryPlan && (
+      <div className="bg-teal-50 rounded-xl p-5 border border-teal-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">📅</span>
+          <h3 className="font-bold text-lg text-teal-800">रीकवरी प्लान</h3>
+        </div>
+        <div className="space-y-2">
+          {healthData.recoveryPlan.day1 && <p className="text-sm"><strong>दिन 1:</strong> {healthData.recoveryPlan.day1}</p>}
+          {healthData.recoveryPlan.day2to3 && <p className="text-sm"><strong>दिन 2-3:</strong> {healthData.recoveryPlan.day2to3}</p>}
+          {healthData.recoveryPlan.week1 && <p className="text-sm"><strong>Week 1:</strong> {healthData.recoveryPlan.week1}</p>}
+          {healthData.recoveryPlan.prevention && <p className="text-sm text-teal-700 mt-2"><strong>🎯 बचाव:</strong> {healthData.recoveryPlan.prevention}</p>}
+        </div>
+      </div>
+    )}
+
+    {/* Medicines Disclaimer */}
+    {healthData.medicines && (
+      <div className="bg-red-50 rounded-xl p-5 border border-red-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">💊</span>
+          <h3 className="font-bold text-lg text-red-800">दवाइयाँ</h3>
+        </div>
+        <p className="text-red-700 text-sm mb-3">{healthData.medicines.disclaimer}</p>
+        {healthData.medicines.otcOptions && healthData.medicines.otcOptions.length > 0 && (
+          <div className="space-y-2">
+            {healthData.medicines.otcOptions.map((med: any, idx: number) => (
+              <div key={idx} className="bg-white rounded-lg p-2">
+                <p className="font-semibold text-gray-800">{med.name}</p>
+                <p className="text-xs text-gray-600">उपयोग: {med.use}</p>
+                <p className="text-xs text-red-600">सावधानी: {med.caution}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Doctor Visit */}
+    {healthData.doctorVisit && (
+      <div className="bg-indigo-50 rounded-xl p-5 border border-indigo-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">👨‍⚕️</span>
+          <h3 className="font-bold text-lg text-indigo-800">डॉक्टर से कब मिलें</h3>
+        </div>
+        <p className="text-indigo-700 text-sm">{healthData.doctorVisit.reason}</p>
+        <div className="mt-2 inline-flex items-center gap-1 text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
+          Urgency: {healthData.doctorVisit.urgency}
+        </div>
+      </div>
+    )}
+
+    {/* Lifestyle */}
+    {healthData.lifestyle && healthData.lifestyle.length > 0 && (
+      <div className="bg-purple-50 rounded-xl p-5 border border-purple-200">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">🧘</span>
+          <h3 className="font-bold text-lg text-purple-800">जीवनशैली सुझाव</h3>
+        </div>
+        <div className="space-y-2">
+          {healthData.lifestyle.map((item: any, idx: number) => (
+            <div key={idx} className="bg-white rounded-lg p-2">
+              <p className="font-semibold text-gray-800">{item.habit}</p>
+              <p className="text-xs text-gray-600">कैसे करें: {item.how}</p>
+              <p className="text-xs text-purple-600">प्रभाव: {item.impact}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
         </div>
       )}
 
@@ -843,7 +1168,13 @@ export default function MedAI() {
               ) : (
                 cart.map(item => (
                   <div key={item.id} className="cart-item">
-                    <div className="cart-item-icon">{item.emoji}</div>
+                    <div className="cart-item-icon">
+                      {item.image ? (
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                      ) : (
+                        item.emoji
+                      )}
+                    </div>
                     <div className="cart-item-info">
                       <div className="cart-item-name">{item.name}</div>
                       <div className="cart-item-price">₹{((item.pricePerTablet || item.price) * item.qty).toFixed(2)}</div>
