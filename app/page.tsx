@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PrescriptionScanner from './components/PrescriptionScanner';
 import MedicineCard from './components/MedicineCard';
 import EnhancedHealthTip from './components/EnhancedHealthTip';
+import Navbar from './components/Navbar';
 
 // ========== Web Speech API Type Declarations ==========
 interface SpeechRecognitionEvent extends Event {
@@ -500,6 +501,13 @@ export default function MedAI() {
     return () => { document.body.removeChild(script); };
   }, []);
 
+  // Add this useEffect in your MedAI component
+useEffect(() => {
+  const handleOpenCart = () => setCartOpen(true);
+  window.addEventListener('openCart', handleOpenCart);
+  return () => window.removeEventListener('openCart', handleOpenCart);
+}, []);
+
   // Speech Recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -731,27 +739,7 @@ export default function MedAI() {
     <>
       <style>{css}</style>
 
-      <nav className="nav">
-        <div className="nav-logo" onClick={resetAll}>
-          ✚ <span>Medi<b style={{ color: "var(--mint)" }}>Ora</b></span>
-        </div>
-        <div className="nav-actions">
-          {!isSignedIn ? (
-            <SignInButton mode="modal">
-              <button className="cart-btn">Sign In</button>
-            </SignInButton>
-          ) : (
-            <>
-              <Link href="/dashboard" className="cart-btn" title="Dashboard">👤</Link>
-              <Link href="/orders" className="cart-btn" title="Orders">📦</Link>
-              <UserButton />
-            </>
-          )}
-          <button className="cart-btn" onClick={() => setCartOpen(true)} title="Cart">
-            🛒 {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
-          </button>
-        </div>
-      </nav>
+      <Navbar cartCount={cartCount} resetAll={resetAll} />
 
       <section className="hero">
   <div className="hero-badge">✦ AI-Powered Pharmacy</div>
@@ -1139,7 +1127,7 @@ export default function MedAI() {
 
       <footer className="footer">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
-          <span>© {new Date().getFullYear()} MedAI. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} Mediora. All rights reserved.</span>
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-mint transition">Privacy</Link>
             <Link href="/terms" className="hover:text-mint transition">Terms</Link>
