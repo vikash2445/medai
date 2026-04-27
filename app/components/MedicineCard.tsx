@@ -36,9 +36,9 @@ interface MedicineCardProps {
   isRecommended?: boolean;
 }
 
-export default function MedicineCard({ medicine, onAddToCart, isRecommended = false }: MedicineCardProps) {
-  const [quantity, setQuantity] = useState(medicine.quantitySelector?.defaultQuantity || 6);
-  const [quantityType, setQuantityType] = useState<'loose' | 'strip'>(
+export default function MedicineCard({ medicine, onAddToCart, isRecommended = false }) {
+  const [quantity, setQuantity] = useState(medicine.quantitySelector?.defaultQuantity || 1);
+  const [quantityType, setQuantityType] = useState(
     medicine.quantitySelector?.recommendedType === 'strip' ? 'strip' : 'loose'
   );
 

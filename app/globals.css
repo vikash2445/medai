@@ -95,6 +95,123 @@ body {
   color: var(--ink);
 }
 
+/* ========== UNIFIED NAVBAR STYLES ========== */
+.med-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(248, 245, 240, 0.95);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--dust, #e8e3db);
+  padding: 0 2rem;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.med-nav-logo {
+  font-family: 'Fraunces', serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--ink, #1a1f1c);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.med-nav-logo .plus {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--sage, #2d6a4f);
+  color: white;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.med-nav-logo .accent {
+  color: var(--sage-mid, #40916c);
+}
+
+.med-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-icon-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--white, #ffffff);
+  border: 1px solid var(--dust, #e8e3db);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  text-decoration: none;
+  color: var(--ink, #1a1f1c);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-icon-btn:hover {
+  background: var(--sage, #2d6a4f);
+  color: white;
+  border-color: var(--sage, #2d6a4f);
+}
+
+.nav-sign-btn {
+  background: var(--sage, #2d6a4f);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  transition: background 0.2s;
+}
+
+.nav-sign-btn:hover {
+  background: var(--sage-mid, #40916c);
+}
+
+.cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--warm, #c8a96e);
+  color: white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile menu */
+.menu-container {
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .med-nav {
+    padding: 0 1rem;
+  }
+}
+
 .nav-actions {
   display: flex;
   align-items: center;

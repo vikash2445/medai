@@ -1,0 +1,20 @@
+{
+  "name": "Mediora",
+  "short_name": "Mediora",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060d08",
+  "theme_color": "#1d9e75",
+  "icons": [
+    {
+      "src": "/icons/logo_icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/logo_icon2.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
