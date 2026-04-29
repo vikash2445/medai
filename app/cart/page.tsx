@@ -1,7 +1,7 @@
 'use client';
 
+import { useState } from 'react';
 import { useCart } from '../context/CartContext';
-import { load } from 'cashfreepayments/cashfree-js';
 
 export default function CheckoutPage() {
   const { cartTotal, cart } = useCart();
@@ -54,3 +54,48 @@ export default function CheckoutPage() {
     </button>
   );
 }
+async function load({ mode }: { mode: string }): Promise<any> {
+  if (typeof window === 'undefined') {
+    throw new Error('Cashfree SDK can only be loaded in the browser');
+  }
+
+  const sdkUrl =
+    mode === 'production'
+      ? 'https://sdk.cashfree.com/js/v2/cashfree.js'
+      : 'https://sdk.cashfree.com/js/v2/cashfree.sandbox.js';
+
+  const globalKey = 'Cashfree';
+  const existingGlobal = (window as any)[globalKey];
+  if (existingGlobal) {
+    return existingGlobal;
+  }
+
+  const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${sdkUrl}"]`);
+  if (existingScript) {
+    return new Promise((resolve, reject) => {
+      existingScript.addEventListener('load', () => {
+        const loadedGlobal = (window as any)[globalKey];
+        if (loadedGlobal) resolve(loadedGlobal);
+        else reject(new Error('Cashfree SDK loaded but global object is missing'));
+      });
+      existingScript.addEventListener('error', () => reject(new Error('Failed to load Cashfree SDK')));
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = sdkUrl;
+    script.async = true;
+    script.onload = () => {
+      const loadedGlobal = (window as any)[globalKey];
+      if (loadedGlobal) {
+        resolve(loadedGlobal);
+      } else {
+        reject(new Error('Cashfree SDK loaded but global object is missing'));
+      }
+    };
+    script.onerror = () => reject(new Error('Failed to load Cashfree SDK'));
+    document.body.appendChild(script);
+  });
+}
+
