@@ -7,6 +7,7 @@ import PrescriptionScanner from './components/PrescriptionScanner';
 import MedicineCard from './components/MedicineCard';
 import EnhancedHealthTip from './components/EnhancedHealthTip';
 import Navbar from './components/Navbar';
+import { load } from '@cashfreepayments/cashfree-js';
 
 // ========== Web Speech API Type Declarations ==========
 interface SpeechRecognitionEvent extends Event {
@@ -596,61 +597,58 @@ export default function MedAI() {
 
   // -------------------- CASHFREE PAYMENT HANDLER --------------------
   const handlePayment = async () => {
-    if (cart.length === 0) {
-      alert("Your cart is empty!");
-      return;
+  if (cart.length === 0) {
+    alert("Your cart is empty!");
+    return;
+  }
+  if (!address.name || !address.phone) {
+    alert("Please fill in your name and phone number.");
+    setCheckoutStep(1);
+    return;
+  }
+
+  setIsProcessingPayment(true);
+  try {
+    const orderId = `MED_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const amountInRupees = cartTotal + 4.99;
+
+    const res = await fetch("/api/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: amountInRupees,
+        orderId,
+        customerName: address.name,
+        customerEmail: address.email || "customer@medai.com",
+        customerPhone: address.phone,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to create Cashfree order");
     }
-    if (!address.name || !address.phone) {
-      alert("Please fill in your name and phone number.");
-      setCheckoutStep(1);
-      return;
-    }
-    if (!window.Cashfree) {
-      alert("Payment system is still loading. Please wait a moment and try again.");
-      return;
-    }
 
-    setIsProcessingPayment(true);
-    try {
-      const orderId = `MED_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      const amountInRupees = cartTotal + 4.99;
+    const data = await res.json();
+    const paymentSessionId = data.payment_session_id;
+    if (!paymentSessionId) throw new Error("No payment session ID received");
 
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amountInRupees,
-          orderId,
-          customerName: address.name,
-          customerEmail: address.email || "customer@medai.com",
-          customerPhone: address.phone,
-        }),
-      });
+    // Load Cashfree SDK dynamically
+    const cashfree = await load({
+      mode: process.env.NEXT_PUBLIC_CASHFREE_ENVIRONMENT === "PRODUCTION" ? "production" : "sandbox",
+    });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create Cashfree order");
-      }
-
-      const data = await res.json();
-      const paymentSessionId = data.payment_session_id;
-      if (!paymentSessionId) throw new Error("No payment session ID received");
-
-      const cashfree = new window.Cashfree({
-        mode: process.env.NEXT_PUBLIC_CASHFREE_ENVIRONMENT === "PRODUCTION" ? "production" : "sandbox",
-      });
-
-      cashfree.checkout({
-        paymentSessionId: paymentSessionId,
-        redirectTarget: "_self",
-      });
-    } catch (err) {
-      console.error("Cashfree payment error:", err);
-      alert(err instanceof Error ? err.message : "Payment initiation failed. Please try again.");
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
+    cashfree.checkout({
+      paymentSessionId: paymentSessionId,
+      redirectTarget: "_self",
+    });
+  } catch (err) {
+    console.error("Cashfree payment error:", err);
+    alert(err instanceof Error ? err.message : "Payment initiation failed. Please try again.");
+  } finally {
+    setIsProcessingPayment(false);
+  }
+};
 
   const resetAll = () => {
     setResults(null);

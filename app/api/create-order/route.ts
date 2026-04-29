@@ -5,13 +5,13 @@ export async function POST(req: Request) {
   try {
     const { amount, orderId, customerName, customerEmail, customerPhone } = await req.json();
 
+    const env = process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX';
     const cashfree = new Cashfree(
-      (process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX') as any,
+      env as any,
       process.env.CASHFREE_APP_ID!,
       process.env.CASHFREE_SECRET_KEY!
     );
 
-    // Build the request object (matches Cashfree API exactly)
     const orderRequest = {
       order_id: orderId,
       order_amount: amount,
@@ -28,11 +28,12 @@ export async function POST(req: Request) {
       },
     };
 
-    // Use type assertion to ignore TypeScript's strict type check
-    const response = await cashfree.PGCreateOrder(orderRequest as any, '2023-08-01');
+    // ✅ Correct order: orderRequest first, then API version
+    const response = await cashfree.PGCreateOrder(orderRequest, '2025-01-01');
 
     if (!response || response.status !== 200) {
-      throw new Error(response?.data?.order_status || 'Order creation failed');
+      const errorMsg = (response?.data as any)?.message || (response?.data as any)?.error || 'Order creation failed';
+      throw new Error(errorMsg);
     }
 
     return NextResponse.json({
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
       payment_session_id: response.data.payment_session_id,
     });
   } catch (error: any) {
-    console.error('Cashfree order error:', error);
+    console.error('Cashfree order error:', error.response?.data || error.message);
     return NextResponse.json(
       { error: error.message || 'Failed to create order' },
       { status: 500 }
