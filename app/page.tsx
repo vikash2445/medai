@@ -634,14 +634,16 @@ export default function MedAI() {
     if (!paymentSessionId) throw new Error("No payment session ID received");
 
     // Load Cashfree SDK dynamically
-    const cashfree = await load({
-      mode: process.env.NEXT_PUBLIC_CASHFREE_ENVIRONMENT === "PRODUCTION" ? "production" : "sandbox",
-    });
+    const cashfree = new (window as any).Cashfree({
+  mode: process.env.NEXT_PUBLIC_CASHFREE_ENVIRONMENT === "PRODUCTION"
+    ? "production"
+    : "sandbox",
+});
 
-    cashfree.checkout({
-      paymentSessionId: paymentSessionId,
-      redirectTarget: "_self",
-    });
+cashfree.checkout({
+  paymentSessionId: paymentSessionId,
+  redirectTarget: "_self",
+});
   } catch (err) {
     console.error("Cashfree payment error:", err);
     alert(err instanceof Error ? err.message : "Payment initiation failed. Please try again.");
