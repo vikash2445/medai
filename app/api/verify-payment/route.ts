@@ -1,23 +1,35 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { Cashfree } from 'cashfree-pg';
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json();
+    const { searchParams } = new URL(req.url);
+    const orderId = searchParams.get('order_id');
 
-    const secret = process.env.RAZORPAY_KEY_SECRET!;
-    const generatedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
-
-    if (generatedSignature === razorpay_signature) {
-      return NextResponse.json({ success: true });
-    } else {
-      return NextResponse.json({ success: false }, { status: 400 });
+    if (!orderId) {
+      return NextResponse.json({ success: false, error: 'Missing order_id' }, { status: 400 });
     }
-  } catch (error) {
-    console.error("Verification error:", error);
-    return NextResponse.json({ success: false }, { status: 500 });
+
+    const cashfree = new Cashfree(
+      process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX' as any,
+      process.env.CASHFREE_APP_ID!,
+      process.env.CASHFREE_SECRET_KEY!
+    );
+
+    // Use the correct method: PGFetchOrder (or getOrder? The error says getOrder doesn't exist. Use PGFetchOrder)
+    const response = await cashfree.PGFetchOrder('2023-08-01', orderId);
+    const orderStatus = response.data.order_status;
+
+    if (orderStatus === 'PAID') {
+      return NextResponse.json({ success: true, status: orderStatus });
+    }
+
+    return NextResponse.json({ success: false, status: orderStatus });
+  } catch (error: any) {
+    console.error('Cashfree verification error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Verification failed' },
+      { status: 500 }
+    );
   }
 }
