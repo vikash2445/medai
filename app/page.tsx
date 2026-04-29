@@ -7,7 +7,6 @@ import PrescriptionScanner from './components/PrescriptionScanner';
 import MedicineCard from './components/MedicineCard';
 import EnhancedHealthTip from './components/EnhancedHealthTip';
 import Navbar from './components/Navbar';
-import { load } from '@cashfreepayments/cashfree-js';
 
 // ========== Web Speech API Type Declarations ==========
 interface SpeechRecognitionEvent extends Event {
