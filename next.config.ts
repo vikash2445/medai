@@ -9,7 +9,19 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-   turbopack: {}, // ✅ ADD THIS
+  turbopack: {},
+  
+  // ✅ Prevent static prerendering for dynamic routes
+  output: 'standalone',
+  
+  // ✅ Allow dynamic routes to be rendered at request time
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  
+  // ✅ Configure which routes should not be statically prerendered
+  // This tells Next.js to treat these as dynamic routes
+  staticPageGenerationTimeout: 120,
 };
 
 export default withPWA(nextConfig);

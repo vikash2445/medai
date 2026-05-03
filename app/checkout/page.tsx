@@ -1,5 +1,8 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 import { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import Link from 'next/link';
@@ -102,7 +105,7 @@ export default function CheckoutPage() {
     localStorage.setItem('checkout_address', JSON.stringify(address));
     localStorage.setItem('pending_order_total', grandTotal.toString());
     localStorage.setItem('mediora_cart', JSON.stringify(cart));
-    
+
     cashfree.checkout({
       paymentSessionId: data.payment_session_id,
       redirectTarget: '_self',
