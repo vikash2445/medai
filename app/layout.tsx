@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/react";
 import Script from "next/script";
 import "./globals.css";
 import { CartProvider } from './context/CartContext';
+import CartDrawer from './components/cartdrawer';      // 👈 added: global cart drawer
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,10 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mediora.fit"),
-
-  // ✅ PWA IMPORTANT
   manifest: "/manifest.json",
-
   title: {
     default: "Mediora - AI Powered Pharmacy & Health Assistant",
     template: "%s | Mediora",
@@ -46,26 +44,21 @@ export default function RootLayout({
       <CartProvider>
         <html lang="en">
           <head>
-            {/* ✅ Manifest */}
             <link rel="manifest" href="/manifest.json" />
-
-            {/* ✅ Icon */}
             <link rel="apple-touch-icon" href="/icons/icon-192.png" />
           </head>
-
           <body>
-            {/* 🔔 OneSignal */}
+            {/* OneSignal */}
             <Script
               src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
               strategy="lazyOnload"
             />
-
             <Script id="onesignal-init" strategy="lazyOnload">
               {`
                 window.OneSignalDeferred = window.OneSignalDeferred || [];
                 OneSignalDeferred.push(async function(OneSignal) {
                   await OneSignal.init({
-                    appId: "YOUR-APP-ID",
+                    appId: "b3081559-d01e-4285-ba29-6131f71951cf",  // 👈 use your real ID
                     notifyButton: { enable: true },
                   });
                 });
@@ -73,6 +66,10 @@ export default function RootLayout({
             </Script>
 
             {children}
+
+            {/* ✅ Single global cart drawer – replaces all local cart panels */}
+            <CartDrawer />
+
             <Analytics />
           </body>
         </html>

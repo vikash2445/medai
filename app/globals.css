@@ -2,26 +2,21 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #2d3a3f;
   --mint: #0fa381;
   --mint-light: #e6f7f3;
   --mint-dark: #0a7860;
   --cream: #faf9f6;
   --stone: #f0ede7;
-  --ink: #1a1a2e;
-  --ink-soft: #4a4a6a;
+  --ink: #2a3a42;
+  --ink-soft: #5a6e78;
   --red: #e05c5c;
   --gold: #f0b429;
   --card-shadow: 0 4px 24px rgba(15, 163, 129, 0.12);
   --radius: 16px;
-  --mint: #0fa381;
-  --mint-light: #e6f7f3;
-  --mint-dark: #0a7860;
-  --cream: #faf9f6;
-  --ink: #1a1a2e;
-  --ink-soft: #4a4a6a;
-
 }
+
+/* Utility Classes - NO BLACK */
 .bg-cream { background: var(--cream); }
 .bg-mint { background: var(--mint); }
 .bg-mint-light { background: var(--mint-light); }
@@ -31,6 +26,7 @@
 .text-ink-soft { color: var(--ink-soft); }
 .hover\:bg-mint-dark:hover { background: var(--mint-dark); }
 .hover\:text-mint-dark:hover { color: var(--mint-dark); }
+
 /* Health Tips Section */
 .bg-blue-50 { background: #eff6ff; }
 .bg-green-50 { background: #f0fdf4; }
@@ -42,12 +38,15 @@
 .text-orange-800 { color: #9a3412; }
 .text-purple-800 { color: #5b21b6; }
 
-
+/* Dark mode - NO BLACK, using dark slate instead */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    
+    --background: #1a2a2f;
+    --foreground: #e8edf0;
+    --cream: #24363d;
+    --stone: #2a3d45;
+    --ink: #e0e8ec;
+    --ink-soft: #9ab3be;
   }
 }
 
@@ -66,7 +65,7 @@ body {
   padding: 0;
 }
 
-/* Navbar Styles */
+/* Navbar Styles - NO BLACK */
 .nav {
   position: sticky;
   top: 0;
@@ -95,7 +94,7 @@ body {
   color: var(--ink);
 }
 
-/* ========== UNIFIED NAVBAR STYLES ========== */
+/* UNIFIED NAVBAR STYLES - NO BLACK */
 .med-nav {
   position: sticky;
   top: 0;
@@ -115,7 +114,7 @@ body {
   font-family: 'Fraunces', serif;
   font-size: 1.6rem;
   font-weight: 600;
-  color: var(--ink, #1a1f1c);
+  color: var(--ink, #2a3a42);
   text-decoration: none;
   display: flex;
   align-items: center;
@@ -157,7 +156,7 @@ body {
   justify-content: center;
   font-size: 1.1rem;
   text-decoration: none;
-  color: var(--ink, #1a1f1c);
+  color: var(--ink, #2a3a42);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -250,7 +249,7 @@ body {
   justify-content: center;
 }
 
-/* Hero Section */
+/* Hero Section - NO BLACK */
 .hero {
   padding: 80px 40px 60px;
   text-align: center;
@@ -303,7 +302,7 @@ body {
   line-height: 1.6;
 }
 
-/* Search Box */
+/* Search Box - NO BLACK */
 .search-box {
   background: #fff;
   border-radius: 24px;
@@ -340,7 +339,7 @@ body {
 }
 
 .search-input::placeholder {
-  color: #a0a0b8;
+  color: #9ab3be;
 }
 
 .search-actions {
@@ -421,7 +420,7 @@ body {
   align-items: flex-start;
 }
 
-/* Loading State */
+/* Loading State - NO BLACK */
 .loading-state {
   padding: 48px;
   text-align: center;
@@ -443,7 +442,7 @@ body {
   }
 }
 
-/* Results Section */
+/* Results Section - NO BLACK */
 .results-section {
   max-width: 1100px;
   margin: 0 auto;
@@ -458,6 +457,7 @@ body {
   font-family: 'DM Serif Display', serif;
   font-size: 1.8rem;
   margin-bottom: 6px;
+  color: var(--ink);
 }
 
 .results-header p {
@@ -477,7 +477,7 @@ body {
   color: #7a5a00;
 }
 
-/* Medicine Cards */
+/* Medicine Cards - NO BLACK */
 .meds-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -578,6 +578,7 @@ body {
   font-family: "DM Serif Display", serif;
   font-size: 1.2rem;
   margin-bottom: 6px;
+  color: var(--ink);
 }
 
 .med-type {
@@ -652,7 +653,7 @@ body {
   cursor: default;
 }
 
-/* Symptom Card */
+/* Symptom Card - NO BLACK */
 .symptom-card {
   background: var(--mint-light);
   border-radius: var(--radius);
@@ -676,7 +677,7 @@ body {
   line-height: 1.5;
 }
 
-/* Error Box */
+/* Error Box - NO BLACK */
 .error-box {
   background: #fff0f0;
   border: 1.5px solid rgba(224, 92, 92, 0.3);
@@ -706,11 +707,11 @@ body {
   margin: 10px 0;
 }
 
-/* Cart Panel */
+/* Cart Panel - NO BLACK */
 .cart-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(26, 26, 46, 0.4);
+  background: rgba(42, 58, 66, 0.4);
   z-index: 200;
   animation: fadeIn 0.2s;
 }
@@ -758,6 +759,7 @@ body {
 .cart-header h2 {
   font-family: "DM Serif Display", serif;
   font-size: 1.4rem;
+  color: var(--ink);
 }
 
 .close-btn {
@@ -811,6 +813,7 @@ body {
 .cart-item-name {
   font-weight: 600;
   font-size: 0.92rem;
+  color: var(--ink);
 }
 
 .cart-item-price {
@@ -825,8 +828,6 @@ body {
   gap: 8px;
 }
 
-
-
 .qty-btn {
   background: var(--stone);
   border: none;
@@ -838,6 +839,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--ink);
 }
 
 .qty-btn:hover {
@@ -866,6 +868,7 @@ body {
   font-size: 1.1rem;
   font-weight: 700;
   margin-bottom: 16px;
+  color: var(--ink);
 }
 
 .checkout-btn {
@@ -885,11 +888,11 @@ body {
   background: var(--mint-dark);
 }
 
-/* Modal */
+/* Modal - NO BLACK */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(26, 26, 46, 0.5);
+  background: rgba(42, 58, 66, 0.5);
   z-index: 300;
   display: flex;
   align-items: center;
@@ -918,6 +921,7 @@ body {
 .modal-header h2 {
   font-family: "DM Serif Display", serif;
   font-size: 1.5rem;
+  color: var(--ink);
 }
 
 .modal-body {
@@ -994,6 +998,7 @@ body {
   font-family: "Outfit", sans-serif;
   font-weight: 600;
   cursor: pointer;
+  color: var(--ink);
 }
 
 .btn-secondary:hover {
@@ -1022,7 +1027,7 @@ body {
   cursor: not-allowed;
 }
 
-/* Success View */
+/* Success View - NO BLACK */
 .success-view {
   text-align: center;
   padding: 48px 28px;
@@ -1050,7 +1055,7 @@ body {
   margin-bottom: 28px;
 }
 
-/* How It Works */
+/* How It Works - NO BLACK */
 .how-section {
   background: #fff;
   padding: 80px 40px;
@@ -1061,6 +1066,7 @@ body {
   font-size: 2rem;
   text-align: center;
   margin-bottom: 48px;
+  color: var(--ink);
 }
 
 .steps-grid {
@@ -1090,6 +1096,7 @@ body {
 .step-card h3 {
   font-weight: 700;
   margin-bottom: 8px;
+  color: var(--ink);
 }
 
 .step-card p {
@@ -1098,7 +1105,7 @@ body {
   line-height: 1.5;
 }
 
-/* Footer */
+/* Footer - NO BLACK */
 .footer {
   padding: 32px 40px;
   border-top: 1px solid #e8e5df;
@@ -1108,7 +1115,6 @@ body {
   color: var(--ink-soft);
   font-size: 0.85rem;
 }
-
 
 /* Modern Card Styles */
 .group:hover {
@@ -1131,7 +1137,6 @@ body {
     font-size: 0.85rem;
   }
   
-  /* Better touch targets for mobile */
   button, .cart-btn, .voice-btn, .analyze-btn {
     min-height: 44px;
   }
