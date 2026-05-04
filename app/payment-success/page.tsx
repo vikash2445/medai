@@ -2,6 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
+export const runtime = 'edge';
+
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
