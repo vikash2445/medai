@@ -13,6 +13,8 @@ import Navbar from '../components/Navbar';
 // ── Cashfree SDK loader ────────────────────────────────────────────────────────
 async function loadCashfree() {
   if (typeof window === 'undefined') throw new Error('Browser only');
+  
+  // Check if already loaded
   if ((window as any).Cashfree) return (window as any).Cashfree;
   
   const sdkUrl = 'https://sdk.cashfree.com/js/v3/cashfree.js';
@@ -21,12 +23,18 @@ async function loadCashfree() {
     const script = document.createElement('script');
     script.src = sdkUrl;
     script.async = true;
-    script.onload = () => resolve((window as any).Cashfree);
+    script.onload = () => {
+      if ((window as any).Cashfree) {
+        console.log('✅ Cashfree SDK loaded successfully');
+        resolve((window as any).Cashfree);
+      } else {
+        reject(new Error('Cashfree SDK loaded but global object missing'));
+      }
+    };
     script.onerror = () => reject(new Error('Failed to load Cashfree SDK'));
     document.body.appendChild(script);
   });
 }
-
 // ── Step indicator ─────────────────────────────────────────────────────────────
 function StepDot({ n, active, done }: { n: number; active: boolean; done: boolean }) {
   return (
@@ -82,10 +90,7 @@ export default function CheckoutPage() {
   setLoading(true);
 
   try {
-    const oid = `ORDER_${Date.now()}_${Math.random()
-      .toString(36)
-      .substr(2, 6)
-      .toUpperCase()}`;
+    const oid = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
     const res = await fetch('/api/create-order', {
       method: 'POST',
@@ -101,22 +106,26 @@ export default function CheckoutPage() {
 
     const data = await res.json();
 
-    // 🔍 DEBUG (important)
-    console.log("Backend Response:", data);
-
     if (!data.success || !data.payment_session_id) {
       throw new Error(data.error || "No session id received");
     }
 
-    // ✅ सही तरीका (NO new CashfreeSDK)
-    const cashfree = await loadCashfree();
+    // ✅ SDK load
+    const Cashfree = await loadCashfree();
 
-    // 💾 Save data before redirect
+    // ✅ Instance create
+    const cashfree = Cashfree({
+      mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "PRODUCTION"
+        ? "production"
+        : "sandbox",
+    });
+
+    // ✅ Local storage
     localStorage.setItem('checkout_address', JSON.stringify(address));
     localStorage.setItem('pending_order_total', grandTotal.toString());
     localStorage.setItem('mediora_cart', JSON.stringify(cart));
 
-    // 🚀 Open Cashfree checkout
+    // ✅ Checkout call
     cashfree.checkout({
       paymentSessionId: data.payment_session_id,
       redirectTarget: "_self",
