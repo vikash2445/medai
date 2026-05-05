@@ -1,42 +1,62 @@
-import { NextResponse } from 'next/server';
-import { Cashfree } from 'cashfree-pg';
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const orderId = searchParams.get('order_id');
+    const orderId = searchParams.get("order_id");
 
     if (!orderId) {
       return NextResponse.json(
-        { success: false, error: 'Missing order_id' },
+        { success: false, error: "Missing order_id" },
         { status: 400 }
       );
     }
 
-    const cashfree = new Cashfree( process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX' as any,
-      process.env.CASHFREE_APP_ID!,
-      process.env.CASHFREE_SECRET_KEY!
+    // ✅ Direct API call (BEST PRACTICE - no SDK issues)
+    const response = await fetch(
+      `https://api.cashfree.com/pg/orders/${orderId}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "x-client-id": process.env.CASHFREE_APP_ID!,
+          "x-client-secret": process.env.CASHFREE_SECRET_KEY!,
+          "x-api-version": "2022-09-01",
+        },
+      }
     );
 
-    // ✅ Correct order of parameters
-    const response = await cashfree.PGFetchOrder(orderId, '2023-08-01');
+    const data = await response.json();
 
-    if (!response || response.status !== 200) {
-      throw new Error("Failed to fetch order from Cashfree");
+    if (!response.ok) {
+      console.error("Cashfree Verify Error:", data);
+      return NextResponse.json(
+        { success: false, error: data },
+        { status: response.status }
+      );
     }
 
-    const orderStatus = response.data?.order_status || "UNKNOWN";
+    const orderStatus = data.order_status;
 
-    if (orderStatus === 'PAID') {
-      return NextResponse.json({ success: true, status: orderStatus });
+    // ✅ Only treat PAID as success
+    if (orderStatus === "PAID") {
+      return NextResponse.json({
+        success: true,
+        status: orderStatus,
+        order: data,
+      });
     }
 
-    return NextResponse.json({ success: false, status: orderStatus });
+    return NextResponse.json({
+      success: false,
+      status: orderStatus,
+      order: data,
+    });
 
   } catch (error: any) {
-    console.error('Cashfree verification error:', error);
+    console.error("Verification Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Verification failed' },
+      { success: false, error: error.message || "Verification failed" },
       { status: 500 }
     );
   }
