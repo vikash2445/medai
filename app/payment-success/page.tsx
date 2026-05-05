@@ -28,7 +28,7 @@ export default function PaymentSuccessPage() {
       try {
         // 1. Verify payment with your backend
         console.log('🔍 Verifying payment for order:', orderId);
-        const verifyRes = await fetch(`/api/verify-payment?order_id=${orderId}`);
+        const verifyRes = await fetch(`/api/verify-order?order_id=${orderId}`)
         
         if (!verifyRes.ok) {
           throw new Error(`Verification failed: ${verifyRes.status}`);
