@@ -79,10 +79,14 @@ export default function CheckoutPage() {
 
   // ── Payment handler ──
   const handlePayment = async () => {
-  // ... validation ...
   setLoading(true);
+
   try {
-    const oid = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const oid = `ORDER_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 6)
+      .toUpperCase()}`;
+
     const res = await fetch('/api/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,30 +98,37 @@ export default function CheckoutPage() {
         customerPhone: address.phone,
       }),
     });
+
     const data = await res.json();
-    if (!data.success) throw new Error(data.error);
 
-    // ✅ Load SDK once
-    const CashfreeSDK = await loadCashfree();
-    const cashfree = new CashfreeSDK({
-      mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox',
-    });
+    // 🔍 DEBUG (important)
+    console.log("Backend Response:", data);
 
+    if (!data.success || !data.payment_session_id) {
+      throw new Error(data.error || "No session id received");
+    }
+
+    // ✅ सही तरीका (NO new CashfreeSDK)
+    const cashfree = await loadCashfree();
+
+    // 💾 Save data before redirect
     localStorage.setItem('checkout_address', JSON.stringify(address));
     localStorage.setItem('pending_order_total', grandTotal.toString());
     localStorage.setItem('mediora_cart', JSON.stringify(cart));
 
+    // 🚀 Open Cashfree checkout
     cashfree.checkout({
       paymentSessionId: data.payment_session_id,
-      redirectTarget: '_self',
+      redirectTarget: "_self",
     });
 
     setOrderId(oid);
     clearCart();
     setStep(3);
+
   } catch (err) {
-    console.error(err);
-    alert('Payment initiation failed. Please try again.');
+    console.error("Payment Error:", err);
+    alert("Payment initiation failed. Please try again.");
   } finally {
     setLoading(false);
   }
