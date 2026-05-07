@@ -5,7 +5,8 @@ import { Analytics } from "@vercel/analytics/react";
 import Script from "next/script";
 import "./globals.css";
 import { CartProvider } from './context/CartContext';
-import CartDrawer from './components/cartdrawer';      // 👈 added: global cart drawer
+import CartDrawer from './components/cartdrawer';
+import UserSync from './components/UserSync';  // 👈 Added: User sync component
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -58,12 +59,15 @@ export default function RootLayout({
                 window.OneSignalDeferred = window.OneSignalDeferred || [];
                 OneSignalDeferred.push(async function(OneSignal) {
                   await OneSignal.init({
-                    appId: "b3081559-d01e-4285-ba29-6131f71951cf",  // 👈 use your real ID
+                    appId: "b3081559-d01e-4285-ba29-6131f71951cf",
                     notifyButton: { enable: true },
                   });
                 });
               `}
             </Script>
+
+            {/* ✅ User sync component – syncs Clerk user data to Supabase */}
+            <UserSync />
 
             {children}
 
