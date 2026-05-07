@@ -140,15 +140,17 @@ export default function CheckoutPage() {
     const CashfreeSDK = await loadCashfree();
 
     // ✅ CORRECT: Use 'new' keyword
-    const cashfree = new CashfreeSDK({
-      mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox",
-    });
+    const Cashfree = await loadCashfree();
 
-    // ✅ Open checkout - this will redirect the page
-    cashfree.checkout({
-      paymentSessionId: data.payment_session_id,
-      redirectTarget: "_self",
-    });
+// ✅ CORRECT way for v3
+const cashfree = new Cashfree({
+  mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox",
+});
+
+cashfree.checkout({
+  paymentSessionId: data.payment_session_id,
+  redirectTarget: "_self",
+});
     
     // ❌ Don't clear cart here - page redirects immediately
     // These lines will never execute:
