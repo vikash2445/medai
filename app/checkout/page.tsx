@@ -96,72 +96,72 @@ export default function CheckoutPage() {
 
   // ── Payment handler ──
   const handlePayment = async () => {
-    setLoading(true);
+  setLoading(true);
 
-    // Validate address before payment
-    if (!address.name || !address.phone) {
-      alert('Please fill in your name and phone number');
-      setStep(1);
-      setLoading(false);
-      return;
+  if (!address.name || !address.phone) {
+    alert('Please fill in your name and phone number');
+    setStep(1);
+    setLoading(false);
+    return;
+  }
+
+  try {
+    const totalAmount = grandTotal;
+    
+    const requestBody = {
+      amount: totalAmount,
+      customerName: address.name,
+      customerEmail: address.email || 'customer@medai.com',
+      customerPhone: address.phone,
+      shippingAddress: `${address.line1 || ''} ${address.city || ''} ${address.zip || ''}`.trim(),
+    };
+    
+    console.log('Creating order with:', requestBody);
+    
+    const res = await fetch('/api/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await res.json();
+    console.log('Order creation response:', data);
+
+    if (!res.ok || !data.payment_session_id) {
+      throw new Error(data.error || "No session id received");
     }
 
-    try {
-      const totalAmount = grandTotal;
-      
-      const requestBody = {
-        amount: totalAmount,
-        customerName: address.name,
-        customerEmail: address.email || 'customer@medai.com',
-        customerPhone: address.phone,
-        shippingAddress: `${address.line1 || ''} ${address.city || ''} ${address.zip || ''}`.trim(),
-      };
-      
-      console.log('Creating order with:', requestBody);
-      
-      const res = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
+    // Save pending order info
+    localStorage.setItem('checkout_address', JSON.stringify(address));
+    localStorage.setItem('pending_order_total', grandTotal.toString());
+    localStorage.setItem('pending_order_id', data.order_id);
+    
+    // ✅ Load Cashfree SDK
+    const CashfreeSDK = await loadCashfree();
 
-      const data = await res.json();
-      console.log('Order creation response:', data);
+    // ✅ CORRECT: Use 'new' keyword
+    const cashfree = new CashfreeSDK({
+      mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox",
+    });
 
-      if (!res.ok || !data.payment_session_id) {
-        throw new Error(data.error || "No session id received");
-      }
+    // ✅ Open checkout - this will redirect the page
+    cashfree.checkout({
+      paymentSessionId: data.payment_session_id,
+      redirectTarget: "_self",
+    });
+    
+    // ❌ Don't clear cart here - page redirects immediately
+    // These lines will never execute:
+    // setOrderId(data.order_id || '');
+    // clearCart();
+    // setStep(3);
 
-      // Save pending order info
-      localStorage.setItem('checkout_address', JSON.stringify(address));
-      localStorage.setItem('pending_order_total', grandTotal.toString());
-      
-      // ✅ Load Cashfree SDK
-      const Cashfree = await loadCashfree();
-
-      // ✅ Create Cashfree instance
-      const cashfree = Cashfree({
-        mode: process.env.NEXT_PUBLIC_CASHFREE_ENVIRONMENT === "PRODUCTION"
-          ? "production"
-          : "sandbox",
-      });
-
-      // ✅ Open checkout
-      cashfree.checkout({
-        paymentSessionId: data.payment_session_id,
-        redirectTarget: "_self",
-      });
-      
-      setOrderId(data.order_id || '');
-      clearCart();
-      setStep(3);
-
-    } catch (err) {
-      console.error("Payment Error:", err);
-      alert(err instanceof Error ? err.message : "Payment initiation failed. Please try again.");
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error("Payment Error:", err);
+    alert(err instanceof Error ? err.message : "Payment initiation failed. Please try again.");
+    setLoading(false);
+  }
+};
 
   return (
     <>

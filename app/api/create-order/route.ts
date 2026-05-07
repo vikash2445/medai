@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const { amount, customerName, customerEmail, customerPhone, shippingAddress } = body;
 
     // Validate required fields
-    if (!amount || isNaN(amount)) {
+    if (!amount || isNaN(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
     }
     
@@ -33,8 +33,8 @@ export async function POST(req: Request) {
       .insert({
         id: orderId,
         user_id: userId,
-        total: Math.round(amount * 100),
-        payment_status: 'pending',
+        total: Math.round(amount * 100), // store in paise
+        status: 'pending',
         shipping_address: shippingAddress || '',
         customer_name: customerName,
         customer_email: customerEmail || '',
@@ -49,15 +49,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
     }
 
-    // ✅ STEP 2: Create Cashfree order
-    const environment = process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX';
-    const cashfree = new Cashfree(
-      environment as any,
-      process.env.CASHFREE_APP_ID!,
-      process.env.CASHFREE_SECRET_KEY!
-    );
+    // ✅ STEP 2: Configure Cashfree
+    const APP_ID = process.env.CASHFREE_APP_ID!;
+    const SECRET_KEY = process.env.CASHFREE_SECRET_KEY!;
+    const ENV = process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX';
+    const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    const orderRequest = {
+    const endpoint = ENV === 'PRODUCTION'
+      ? 'https://api.cashfree.com/pg/orders'
+      : 'https://sandbox.cashfree.com/pg/orders';
+
+    const requestBody = {
       order_id: orderId,
       order_amount: amount,
       order_currency: 'INR',
@@ -68,36 +70,48 @@ export async function POST(req: Request) {
         customer_email: customerEmail || '',
       },
       order_meta: {
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-status?order_id={order_id}`,
-        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/cashfree-webhook`,
+        return_url: `${BASE_URL}/payment-success?order_id={order_id}`,
+        notify_url: `${BASE_URL}/api/cashfree-webhook`,
       },
     };
 
-    console.log('Creating Cashfree order:', orderRequest);
-    
-    const response = await cashfree.PGCreateOrder(orderRequest as any, '2025-01-01');
+    console.log('Creating Cashfree order:', requestBody);
 
-    // Check response
-    if (!response || response.status !== 200) {
-      // Clean up the pending order if Cashfree creation fails
+    // ✅ STEP 3: Call Cashfree API directly (more reliable than SDK)
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-version': '2023-08-01',
+        'x-client-id': APP_ID,
+        'x-client-secret': SECRET_KEY,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Cashfree API error:', data);
+      
+      // Clean up the pending order
       await supabase.from('orders').delete().eq('id', orderId);
       
-      const errorMsg = (response?.data as any)?.message || (response?.data as any)?.error || 'Order creation failed';
-      throw new Error(errorMsg);
+      return NextResponse.json(
+        { error: data.message || 'Failed to create Cashfree order' },
+        { status: response.status }
+      );
     }
 
-    // ✅ STEP 3: Update order with Cashfree order ID
-    const cashfreeOrderId = response.data?.order_id;
-    if (cashfreeOrderId) {
-      await supabase
-        .from('orders')
-        .update({ cashfree_order_id: cashfreeOrderId })
-        .eq('id', orderId);
-    }
+    // ✅ STEP 4: Update order with Cashfree reference
+    await supabase
+      .from('orders')
+      .update({ cashfree_order_id: data.order_id })
+      .eq('id', orderId);
 
     return NextResponse.json({
       success: true,
-      payment_session_id: response.data?.payment_session_id,
+      payment_session_id: data.payment_session_id,
       order_id: orderId,
     });
   } catch (error: any) {
