@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Cashfree } from 'cashfree-pg';
 import { auth } from '@clerk/nextjs/server';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/app/lib/supabase';
 
 export async function POST(req: Request) {
   try {
@@ -13,15 +13,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log('Received order request:', body);
     
-    // Extract fields with fallbacks
-    const { 
-      amount, 
-      items = [], 
-      shippingAddress = '', 
-      customerName = '', 
-      customerEmail = '', 
-      customerPhone = '' 
-    } = body;
+    const { amount, customerName, customerEmail, customerPhone, shippingAddress } = body;
 
     // Validate required fields
     if (!amount || isNaN(amount)) {
@@ -32,18 +24,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Customer name and phone are required' }, { status: 400 });
     }
 
+    // Generate order ID
+    const orderId = `MED_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
     // ✅ STEP 1: Create order in database with 'pending' status
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
+        id: orderId,
         user_id: userId,
         total: Math.round(amount * 100),
         payment_status: 'pending',
-        shipping_address: shippingAddress,
+        shipping_address: shippingAddress || '',
         customer_name: customerName,
         customer_email: customerEmail || '',
         customer_phone: customerPhone,
-        items: items,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -63,7 +58,7 @@ export async function POST(req: Request) {
     );
 
     const orderRequest = {
-      order_id: order.id,
+      order_id: orderId,
       order_amount: amount,
       order_currency: 'INR',
       customer_details: {
@@ -82,10 +77,10 @@ export async function POST(req: Request) {
     
     const response = await cashfree.PGCreateOrder(orderRequest as any, '2025-01-01');
 
-    // Check response - Cashfree returns status and data
+    // Check response
     if (!response || response.status !== 200) {
       // Clean up the pending order if Cashfree creation fails
-      await supabase.from('orders').delete().eq('id', order.id);
+      await supabase.from('orders').delete().eq('id', orderId);
       
       const errorMsg = (response?.data as any)?.message || (response?.data as any)?.error || 'Order creation failed';
       throw new Error(errorMsg);
@@ -97,13 +92,13 @@ export async function POST(req: Request) {
       await supabase
         .from('orders')
         .update({ cashfree_order_id: cashfreeOrderId })
-        .eq('id', order.id);
+        .eq('id', orderId);
     }
 
     return NextResponse.json({
       success: true,
       payment_session_id: response.data?.payment_session_id,
-      order_id: order.id,
+      order_id: orderId,
     });
   } catch (error: any) {
     console.error('Order creation error:', error);

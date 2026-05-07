@@ -4,21 +4,6 @@ import { useUser, useSession } from '@clerk/nextjs';
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Create a function to get the Supabase client with auth token
-const getSupabaseClient = async (clerkToken: string) => {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${clerkToken}`,
-        },
-      },
-    }
-  );
-};
-
 export default function UserSync() {
   const { user, isSignedIn } = useUser();
   const { session } = useSession();
@@ -32,23 +17,29 @@ export default function UserSync() {
         // Get the Clerk session token
         const token = await session.getToken();
         
-        // Create Supabase client with token
-        const supabase = await getSupabaseClient(token);
+        // Create a temporary Supabase client with the token
+        const supabaseWithToken = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            global: {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          }
+        );
 
         const email = user.emailAddresses[0]?.emailAddress || '';
         const fullName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || email.split('@')[0];
         const phone = user.phoneNumbers?.[0]?.phoneNumber || null;
 
         // Check if profile exists
-        const { data: existingProfile, error: fetchError } = await supabase
+        const { data: existingProfile, error: fetchError } = await supabaseWithToken
           .from('profiles')
-          .select('id')
+          .select('clerk_id')
           .eq('clerk_id', user.id)
           .maybeSingle();
-
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          console.error('Fetch error:', fetchError);
-        }
 
         const profileData = {
           clerk_id: user.id,
@@ -60,7 +51,7 @@ export default function UserSync() {
 
         if (!existingProfile) {
           // Create new profile
-          const { error: insertError } = await supabase
+          const { error: insertError } = await supabaseWithToken
             .from('profiles')
             .insert(profileData);
 
@@ -71,7 +62,7 @@ export default function UserSync() {
           }
         } else {
           // Update existing profile
-          const { error: updateError } = await supabase
+          const { error: updateError } = await supabaseWithToken
             .from('profiles')
             .update(profileData)
             .eq('clerk_id', user.id);
