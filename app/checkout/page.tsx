@@ -2,13 +2,11 @@
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
-export const runtime = 'edge';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import Link from 'next/link';
 import Navbar from '../components/Navbar';
-
 
 // ── Cashfree SDK loader ────────────────────────────────────────────────────────
 async function loadCashfree() {
@@ -35,6 +33,7 @@ async function loadCashfree() {
     document.body.appendChild(script);
   });
 }
+
 // ── Step indicator ─────────────────────────────────────────────────────────────
 function StepDot({ n, active, done }: { n: number; active: boolean; done: boolean }) {
   return (
@@ -57,17 +56,27 @@ function StepDot({ n, active, done }: { n: number; active: boolean; done: boolea
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const { cart, cartTotal, cartCount, clearCart } = useCart();
-  const [step,    setStep]    = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [address, setAddress] = useState({
     name: '', phone: '', email: '', line1: '', city: '', zip: '',
   });
 
-  const delivery = 0;           // free delivery
+  const delivery = 0; // free delivery
   const grandTotal = cartTotal + delivery;
 
-  // ── Empty cart ──
+  // Restore address from localStorage on mount
+  useEffect(() => {
+    const savedAddress = localStorage.getItem('checkout_address');
+    if (savedAddress) {
+      try {
+        setAddress(JSON.parse(savedAddress));
+      } catch (e) {}
+    }
+  }, []);
+
+  // Empty cart
   if (cart.length === 0 && step !== 3) {
     return (
       <>
@@ -87,61 +96,72 @@ export default function CheckoutPage() {
 
   // ── Payment handler ──
   const handlePayment = async () => {
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    const oid = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-    const res = await fetch('/api/create-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: grandTotal,
-        orderId: oid,
-        customerName: address.name,
-        customerEmail: address.email || 'customer@example.com',
-        customerPhone: address.phone,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!data.success || !data.payment_session_id) {
-      throw new Error(data.error || "No session id received");
+    // Validate address before payment
+    if (!address.name || !address.phone) {
+      alert('Please fill in your name and phone number');
+      setStep(1);
+      setLoading(false);
+      return;
     }
 
-    // ✅ SDK load
-    const Cashfree = await loadCashfree();
+    try {
+      const totalAmount = grandTotal;
+      
+      const requestBody = {
+        amount: totalAmount,
+        customerName: address.name,
+        customerEmail: address.email || 'customer@medai.com',
+        customerPhone: address.phone,
+        shippingAddress: `${address.line1 || ''} ${address.city || ''} ${address.zip || ''}`.trim(),
+      };
+      
+      console.log('Creating order with:', requestBody);
+      
+      const res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
 
-    // ✅ Instance create
-    const cashfree = Cashfree({
-      mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "PRODUCTION"
-        ? "production"
-        : "sandbox",
-    });
+      const data = await res.json();
+      console.log('Order creation response:', data);
 
-    // ✅ Local storage
-    localStorage.setItem('checkout_address', JSON.stringify(address));
-    localStorage.setItem('pending_order_total', grandTotal.toString());
-    localStorage.setItem('mediora_cart', JSON.stringify(cart));
+      if (!res.ok || !data.payment_session_id) {
+        throw new Error(data.error || "No session id received");
+      }
 
-    // ✅ Checkout call
-    cashfree.checkout({
-      paymentSessionId: data.payment_session_id,
-      redirectTarget: "_self",
-    });
+      // Save pending order info
+      localStorage.setItem('checkout_address', JSON.stringify(address));
+      localStorage.setItem('pending_order_total', grandTotal.toString());
+      
+      // ✅ Load Cashfree SDK
+      const Cashfree = await loadCashfree();
 
-    setOrderId(oid);
-    clearCart();
-    setStep(3);
+      // ✅ Create Cashfree instance
+      const cashfree = Cashfree({
+        mode: process.env.NEXT_PUBLIC_CASHFREE_ENVIRONMENT === "PRODUCTION"
+          ? "production"
+          : "sandbox",
+      });
 
-  } catch (err) {
-    console.error("Payment Error:", err);
-    alert("Payment initiation failed. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+      // ✅ Open checkout
+      cashfree.checkout({
+        paymentSessionId: data.payment_session_id,
+        redirectTarget: "_self",
+      });
+      
+      setOrderId(data.order_id || '');
+      clearCart();
+      setStep(3);
+
+    } catch (err) {
+      console.error("Payment Error:", err);
+      alert(err instanceof Error ? err.message : "Payment initiation failed. Please try again.");
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -150,7 +170,7 @@ export default function CheckoutPage() {
 
       <div className="co-page">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="co-header">
           <h1 className="co-title">Checkout</h1>
 
@@ -169,11 +189,9 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* ── STEP 1 — Address ── */}
+        {/* STEP 1 — Address */}
         {step === 1 && (
           <div className="co-layout">
-
-            {/* Form */}
             <div className="co-card co-form-card">
               <div className="co-card-header">
                 <div className="co-card-icon">📍</div>
@@ -276,12 +294,11 @@ export default function CheckoutPage() {
               </button>
             </div>
 
-            {/* Order Summary sidebar */}
             <OrderSummary cart={cart} cartTotal={cartTotal} grandTotal={grandTotal} delivery={delivery} />
           </div>
         )}
 
-        {/* ── STEP 2 — Review & Pay ── */}
+        {/* STEP 2 — Review & Pay */}
         {step === 2 && (
           <div className="co-layout">
             <div>
@@ -371,7 +388,7 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {/* ── STEP 3 — Success ── */}
+        {/* STEP 3 — Success */}
         {step === 3 && (
           <div className="co-success">
             <div className="co-success-anim">
@@ -383,7 +400,7 @@ export default function CheckoutPage() {
               Your medicines are on their way. Estimated delivery in <strong>1–3 business days</strong>.
             </p>
             <div className="co-order-id">
-              Order ID: <strong>{orderId || `MED-${Math.random().toString(36).slice(2,8).toUpperCase()}`}</strong>
+              Order ID: <strong>{orderId || `MED-${Math.random().toString(36).slice(2, 8).toUpperCase()}`}</strong>
             </div>
             <div className="co-success-address">
               📍 Delivering to {address.name}{address.city ? `, ${address.city}` : ''}
@@ -452,8 +469,9 @@ function OrderSummary({
   );
 }
 
-// ── CSS ────────────────────────────────────────────────────────────────────────
+// ── CSS remains the same (your existing CSS) ──
 const css = `
+  /* Your existing CSS - keep it exactly as you have it */
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap');
 
   :root {
@@ -473,7 +491,6 @@ const css = `
     --shadow-lg:  0 12px 40px rgba(0,0,0,0.10);
   }
 
-  /* ── Page ── */
   .co-page {
     max-width: 1100px;
     margin: 0 auto;
@@ -484,7 +501,6 @@ const css = `
     min-height: 100vh;
   }
 
-  /* ── Header ── */
   .co-header { text-align: center; margin-bottom: 40px; }
   .co-title {
     font-family: 'DM Serif Display', serif;
@@ -508,7 +524,6 @@ const css = `
   }
   .co-step-labels span.active { color: var(--ink); font-weight: 600; }
 
-  /* ── Layout ── */
   .co-layout {
     display: grid;
     grid-template-columns: 1fr 340px;
@@ -516,7 +531,6 @@ const css = `
     align-items: start;
   }
 
-  /* ── Cards ── */
   .co-card {
     background: var(--white);
     border-radius: 20px;
@@ -524,7 +538,6 @@ const css = `
     padding: 28px;
     box-shadow: var(--shadow);
   }
-  .co-form-card { margin-bottom: 0; }
   .co-card-header {
     display: flex; align-items: flex-start;
     gap: 14px; margin-bottom: 24px;
@@ -538,7 +551,6 @@ const css = `
   .co-card-title { font-size: 1rem; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
   .co-card-sub   { font-size: 0.8rem; color: var(--ink-muted); }
 
-  /* ── Form ── */
   .co-form { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
   .co-field { display: flex; flex-direction: column; gap: 6px; flex: 1; }
   .co-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -564,21 +576,19 @@ const css = `
     box-shadow: 0 0 0 3px rgba(15,163,129,0.12);
     background: var(--white);
   }
-  .co-input::placeholder { color: #b0b0c0; }
 
-  /* ── Trust row ── */
   .co-trust-row {
     display: flex; gap: 20px; flex-wrap: wrap;
     margin-bottom: 24px;
     padding: 14px 16px;
-    background: var(--stone); border-radius: 10px;
+    background: var(--stone);
+    border-radius: 10px;
   }
   .co-trust-item {
     display: flex; align-items: center; gap: 6px;
     font-size: 0.78rem; color: var(--ink-soft); font-weight: 500;
   }
 
-  /* ── Buttons ── */
   .co-btn-primary {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     background: var(--ink); color: var(--white);
@@ -589,7 +599,7 @@ const css = `
     cursor: pointer; transition: all 0.22s;
     text-decoration: none;
   }
-  .co-btn-primary:hover:not(:disabled) { background: var(--mint); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15,163,129,0.28); }
+  .co-btn-primary:hover:not(:disabled) { background: var(--mint); transform: translateY(-1px); }
   .co-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
   .co-btn-pay { background: var(--mint); min-width: 200px; }
   .co-btn-pay:hover:not(:disabled) { background: var(--mint-dark); }
@@ -609,18 +619,16 @@ const css = `
 
   .co-action-row { display: flex; gap: 12px; align-items: center; }
 
-  /* ── Address preview ── */
   .co-address-preview { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.6; margin-top: 4px; }
   .co-edit-btn {
     background: var(--mint-light); color: var(--mint-dark);
     border: none; border-radius: 8px;
     padding: 6px 14px; font-size: 0.8rem; font-weight: 600;
-    cursor: pointer; transition: all 0.18s; white-space: nowrap;
+    cursor: pointer; transition: all 0.18s;
     font-family: 'Outfit', sans-serif;
   }
   .co-edit-btn:hover { background: var(--mint); color: var(--white); }
 
-  /* ── Item list ── */
   .co-item-list { display: flex; flex-direction: column; gap: 0; }
   .co-item-row {
     display: flex; align-items: center; gap: 14px;
@@ -639,7 +647,6 @@ const css = `
   .co-item-qty  { font-size: 0.82rem; color: var(--ink-muted); font-weight: 500; }
   .co-item-price { font-size: 0.92rem; font-weight: 700; color: var(--ink); min-width: 70px; text-align: right; }
 
-  /* ── Payment methods ── */
   .co-payment-methods { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
   .co-pay-chip {
     padding: 6px 14px; border-radius: 50px;
@@ -652,7 +659,6 @@ const css = `
     padding: 12px 14px; font-size: 0.78rem; color: var(--ink-soft);
   }
 
-  /* ── Order Summary ── */
   .co-summary-card {
     background: var(--white);
     border-radius: 20px;
@@ -684,21 +690,17 @@ const css = `
     padding: 12px 14px; font-size: 0.76rem; color: var(--ink-soft); line-height: 1.5;
   }
 
-  /* ── Empty state ── */
   .co-empty {
     text-align: center; padding: 80px 24px;
-    font-family: 'Outfit', sans-serif;
     max-width: 400px; margin: 0 auto;
   }
   .co-empty-icon { font-size: 4rem; margin-bottom: 20px; }
   .co-empty-title { font-family: 'DM Serif Display', serif; font-size: 1.8rem; color: var(--ink); margin-bottom: 10px; }
   .co-empty-sub { font-size: 0.92rem; color: var(--ink-muted); margin-bottom: 24px; }
 
-  /* ── Success ── */
   .co-success {
     text-align: center; padding: 48px 24px;
     max-width: 520px; margin: 0 auto;
-    font-family: 'Outfit', sans-serif;
   }
   .co-success-anim { position: relative; width: 100px; height: 100px; margin: 0 auto 28px; }
   .co-success-ring {
@@ -731,14 +733,12 @@ const css = `
     background: var(--mint-light); color: var(--mint-dark);
     border-radius: 10px; padding: 10px 24px;
     font-size: 0.9rem; font-weight: 600; margin-bottom: 12px;
-    letter-spacing: 0.3px;
   }
   .co-success-address {
     font-size: 0.84rem; color: var(--ink-muted); margin-bottom: 32px;
   }
   .co-success-actions { display: flex; gap: 12px; justify-content: center; }
 
-  /* ── Spinner ── */
   .co-spinner {
     display: inline-block;
     width: 16px; height: 16px;
@@ -746,11 +746,9 @@ const css = `
     border-top-color: #fff;
     border-radius: 50%;
     animation: coSpin 0.7s linear infinite;
-    flex-shrink: 0;
   }
   @keyframes coSpin { to { transform: rotate(360deg); } }
 
-  /* ── Responsive ── */
   @media (max-width: 768px) {
     .co-layout { grid-template-columns: 1fr; }
     .co-summary-card { position: static; order: -1; }

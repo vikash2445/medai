@@ -10,11 +10,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { amount, items, shippingAddress, customerName, customerEmail, customerPhone } = await req.json();
+    const body = await req.json();
+    console.log('Received order request:', body);
+    
+    // Extract fields with fallbacks
+    const { 
+      amount, 
+      items = [], 
+      shippingAddress = '', 
+      customerName = '', 
+      customerEmail = '', 
+      customerPhone = '' 
+    } = body;
 
     // Validate required fields
-    if (!amount || !items || !customerName || !customerPhone) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!amount || isNaN(amount)) {
+      return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
+    }
+    
+    if (!customerName || !customerPhone) {
+      return NextResponse.json({ error: 'Customer name and phone are required' }, { status: 400 });
     }
 
     // ✅ STEP 1: Create order in database with 'pending' status
@@ -35,7 +50,7 @@ export async function POST(req: Request) {
       .single();
 
     if (orderError) {
-      console.error('Database order creation error:', orderError);
+      console.error('Database order error:', orderError);
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
     }
 
@@ -63,7 +78,8 @@ export async function POST(req: Request) {
       },
     };
 
-    // ✅ Use type assertion to bypass TypeScript errors
+    console.log('Creating Cashfree order:', orderRequest);
+    
     const response = await cashfree.PGCreateOrder(orderRequest as any, '2025-01-01');
 
     // Check response - Cashfree returns status and data
@@ -71,7 +87,6 @@ export async function POST(req: Request) {
       // Clean up the pending order if Cashfree creation fails
       await supabase.from('orders').delete().eq('id', order.id);
       
-      // Safely extract error message
       const errorMsg = (response?.data as any)?.message || (response?.data as any)?.error || 'Order creation failed';
       throw new Error(errorMsg);
     }

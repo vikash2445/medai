@@ -1,28 +1,54 @@
 'use client';
 
-import { useUser } from '@clerk/nextjs';
+import { useUser, useSession } from '@clerk/nextjs';
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+// Create a function to get the Supabase client with auth token
+const getSupabaseClient = async (clerkToken: string) => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${clerkToken}`,
+        },
+      },
+    }
+  );
+};
 
 export default function UserSync() {
   const { user, isSignedIn } = useUser();
+  const { session } = useSession();
   const [synced, setSynced] = useState(false);
 
   useEffect(() => {
     const syncUserToSupabase = async () => {
-      if (!isSignedIn || !user || synced) return;
+      if (!isSignedIn || !user || !session || synced) return;
 
       try {
+        // Get the Clerk session token
+        const token = await session.getToken();
+        
+        // Create Supabase client with token
+        const supabase = await getSupabaseClient(token);
+
         const email = user.emailAddresses[0]?.emailAddress || '';
         const fullName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || email.split('@')[0];
         const phone = user.phoneNumbers?.[0]?.phoneNumber || null;
 
         // Check if profile exists
-        const { data: existingProfile } = await supabase
+        const { data: existingProfile, error: fetchError } = await supabase
           .from('profiles')
           .select('id')
           .eq('clerk_id', user.id)
-          .single();
+          .maybeSingle();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.error('Fetch error:', fetchError);
+        }
 
         const profileData = {
           clerk_id: user.id,
@@ -34,21 +60,27 @@ export default function UserSync() {
 
         if (!existingProfile) {
           // Create new profile
-          const { error } = await supabase
+          const { error: insertError } = await supabase
             .from('profiles')
             .insert(profileData);
 
-          if (error) throw error;
-          console.log('✅ User profile created in Supabase');
+          if (insertError) {
+            console.error('Insert error:', insertError);
+          } else {
+            console.log('✅ User profile created in Supabase');
+          }
         } else {
           // Update existing profile
-          const { error } = await supabase
+          const { error: updateError } = await supabase
             .from('profiles')
             .update(profileData)
             .eq('clerk_id', user.id);
 
-          if (error) throw error;
-          console.log('✅ User profile updated in Supabase');
+          if (updateError) {
+            console.error('Update error:', updateError);
+          } else {
+            console.log('✅ User profile updated in Supabase');
+          }
         }
 
         setSynced(true);
@@ -58,8 +90,7 @@ export default function UserSync() {
     };
 
     syncUserToSupabase();
-  }, [isSignedIn, user, synced]);
+  }, [isSignedIn, user, session, synced]);
 
-  // This component doesn't render anything visible
   return null;
 }
