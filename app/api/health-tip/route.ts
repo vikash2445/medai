@@ -22,6 +22,7 @@ export async function GET() {
   const prompt = `You are a certified health expert. Generate ONE highly specific, evidence-based daily health tip.
 
 Return ONLY valid JSON in this EXACT format — no extra text, no markdown, no trailing commas:
+
 {
   "title": "Short English title (3-5 words)",
   "tip": "One-line English tip (max 100 chars)",
@@ -38,7 +39,7 @@ Return ONLY valid JSON in this EXACT format — no extra text, no markdown, no t
 }
 
 Rules:
-- ALL strings must be wrapped in double quotes (not single quotes)
+- ALL strings must use double quotes (not single quotes)
 - NO trailing commas
 - NO comments inside JSON
 - Pick a different category each day: hydration, exercise, sleep, nutrition, wellness, mental
@@ -55,20 +56,44 @@ Rules:
     const text = completion.choices[0]?.message?.content || '';
     console.log('Raw AI response:', text);
     
-    // Clean the response
+    // Step 1: Remove markdown code fences
     let clean = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     
-    // Fix common JSON issues
+    // Step 2: Fix common JSON issues
     clean = clean
-      .replace(/'/g, '"') // Replace single quotes with double quotes
+      .replace(/'/g, '"')           // Replace single quotes with double quotes
       .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
       .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3'); // Add quotes to unquoted property names
     
-    console.log('Cleaned JSON:', clean);
+    // Step 3: Use a more robust parsing approach with fallback
+    let tipData;
+    try {
+      tipData = JSON.parse(clean);
+    } catch (parseError) {
+      console.error('First parse attempt failed, trying to extract JSON object...');
+      
+      // Try to extract JSON using regex
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          tipData = JSON.parse(jsonMatch[0]);
+        } catch (secondError) {
+          console.error('Second parse attempt failed, using fallback');
+          tipData = null;
+        }
+      } else {
+        tipData = null;
+      }
+    }
     
-    const tipData = JSON.parse(clean);
+    // Validate and provide fallback if parsing failed
+    if (!tipData) {
+      console.error('Failed to parse AI response, using fallback tip');
+      const fallbackTip = getFallbackTip();
+      return NextResponse.json({ ...fallbackTip, date: today });
+    }
     
-    // Validate required fields
+    // Validate required fields and provide defaults
     const validatedTip = {
       title: tipData.title || "Stay Healthy",
       tip: tipData.tip || "Take care of your health daily",
@@ -76,8 +101,8 @@ Rules:
       hindiTip: tipData.hindiTip || "अपने स्वास्थ्य का ध्यान रखें",
       whyItMatters: tipData.whyItMatters || "Small daily habits lead to better health",
       hindiWhyItMatters: tipData.hindiWhyItMatters || "छोटी-छोटी आदतें बेहतर स्वास्थ्य की ओर ले जाती हैं",
-      steps: Array.isArray(tipData.steps) ? tipData.steps : ["Start small", "Be consistent", "Track progress", "Stay motivated"],
-      hindiSteps: Array.isArray(tipData.hindiSteps) ? tipData.hindiSteps : ["छोटी शुरुआत करें", "नियमित रहें", "प्रगति देखें", "प्रेरित रहें"],
+      steps: Array.isArray(tipData.steps) && tipData.steps.length === 4 ? tipData.steps : ["Start small", "Be consistent", "Track progress", "Stay motivated"],
+      hindiSteps: Array.isArray(tipData.hindiSteps) && tipData.hindiSteps.length === 4 ? tipData.hindiSteps : ["छोटी शुरुआत करें", "नियमित रहें", "प्रगति देखें", "प्रेरित रहें"],
       quickFact: tipData.quickFact || "Healthy habits improve quality of life",
       hindiQuickFact: tipData.hindiQuickFact || "स्वस्थ आदतें जीवन की गुणवत्ता बढ़ाती हैं",
       reminderTime: tipData.reminderTime || "morning",
@@ -145,30 +170,6 @@ function getFallbackTip() {
       reminderTime: 'morning',
       category: 'sleep',
     },
-    {
-      title: 'Hydration Boost',
-      tip: 'Drink 2 glasses of water immediately after waking up.',
-      hindiTitle: 'पानी पीने की आदत',
-      hindiTip: 'सुबह उठते ही 2 गिलास पानी पिएं।',
-      whyItMatters: 'After 7-8 hours of sleep, your body is dehydrated. Water kickstarts metabolism and flushes toxins.',
-      hindiWhyItMatters: '7-8 घंटे की नींद के बाद शरीर में पानी की कमी हो जाती है। पानी मेटाबॉलिज्म को तेज करता है।',
-      steps: [
-        'Keep a water bottle by your bedside.',
-        'Drink first glass immediately after waking.',
-        'Wait 2 minutes, then drink second glass.',
-        'Wait 30 minutes before eating breakfast.'
-      ],
-      hindiSteps: [
-        'पानी की बोतल बिस्तर के पास रखें।',
-        'उठते ही पहला गिलास पानी पिएं।',
-        '2 मिनट रुकें, फिर दूसरा गिलास पिएं।',
-        'नाश्ते से 30 मिनट पहले रुकें।'
-      ],
-      quickFact: 'Drinking water first thing increases metabolism by 24% for 90 minutes.',
-      hindiQuickFact: 'सुबह पानी पीने से मेटाबॉलिज्म 24% तक बढ़ जाता है।',
-      reminderTime: 'morning',
-      category: 'hydration',
-    }
   ];
   return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
