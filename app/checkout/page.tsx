@@ -96,20 +96,17 @@ export default function CheckoutPage() {
 
   // ── Payment handler ──
   const handlePayment = async () => {
-  setLoading(true);
-
   if (!address.name || !address.phone) {
     alert('Please fill in your name and phone number');
     setStep(1);
-    setLoading(false);
     return;
   }
 
+  setLoading(true);
+
   try {
-    const totalAmount = grandTotal;
-    
     const requestBody = {
-      amount: totalAmount,
+      amount: grandTotal,
       customerName: address.name,
       customerEmail: address.email || 'customer@medai.com',
       customerPhone: address.phone,
@@ -131,32 +128,26 @@ export default function CheckoutPage() {
       throw new Error(data.error || "No session id received");
     }
 
-    // Save pending order info
+    // Save pending order info for success page
     localStorage.setItem('checkout_address', JSON.stringify(address));
     localStorage.setItem('pending_order_total', grandTotal.toString());
     localStorage.setItem('pending_order_id', data.order_id);
     
-    // ✅ Load Cashfree SDK
+    // ✅ Load Cashfree SDK once
     const CashfreeSDK = await loadCashfree();
 
-    // ✅ CORRECT: Use 'new' keyword
-    const Cashfree = await loadCashfree();
+    // ✅ CORRECT: Cashfree is the constructor directly
+    const cashfree = new CashfreeSDK({
+      mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox",
+    });
 
-// ✅ CORRECT way for v3
-const cashfree = new Cashfree({
-  mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox",
-});
-
-cashfree.checkout({
-  paymentSessionId: data.payment_session_id,
-  redirectTarget: "_self",
-});
+    // ✅ This will redirect the browser to Cashfree
+    cashfree.checkout({
+      paymentSessionId: data.payment_session_id,
+      redirectTarget: "_self",
+    });
     
-    // ❌ Don't clear cart here - page redirects immediately
-    // These lines will never execute:
-    // setOrderId(data.order_id || '');
-    // clearCart();
-    // setStep(3);
+    // ❌ Do NOT clear cart or setStep here - page redirects immediately
 
   } catch (err) {
     console.error("Payment Error:", err);

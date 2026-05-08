@@ -15,13 +15,16 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // ✅ Use correct table name (create this table in Supabase)
     const { data: profile, error } = await supabase
-      .from('user_profiles')
+      .from('user_profiles')  // Make sure this table exists
       .select('*')
       .eq('user_id', userId)
       .single();
 
+    // If no profile found, return null (not an error)
     if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching profile:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -55,6 +58,7 @@ export async function PUT(req: Request) {
       .single();
 
     if (error) {
+      console.error('Error updating profile:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

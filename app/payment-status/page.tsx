@@ -15,10 +15,17 @@ function PaymentStatusContent() {
   useEffect(() => {
     if (!orderId) return;
 
-    fetch(`/api/verify-payment?order_id=${orderId}`)
+    // ✅ Correct endpoint: /api/verify-order (not verify-payment)
+    fetch(`/api/verify-order?order_id=${orderId}`)
       .then(res => res.json())
-      .then(data => setStatus(data.success ? 'success' : 'failed'))
-      .catch(() => setStatus('failed'));
+      .then(data => {
+        console.log('Verification response:', data);
+        setStatus(data.success ? 'success' : 'failed');
+      })
+      .catch(err => {
+        console.error('Verification error:', err);
+        setStatus('failed');
+      });
   }, [orderId]);
 
   if (status === 'loading')
@@ -33,13 +40,17 @@ function PaymentStatusContent() {
         <Link href="/orders" className="text-blue-600 underline mt-2 inline-block">
           View Orders
         </Link>
+        <Link href="/" className="text-blue-600 underline mt-2 inline-block ml-4">
+          Continue Shopping
+        </Link>
       </div>
     );
 
   return (
     <div className="text-center p-8">
       <h1 className="text-2xl font-bold text-red-600">Payment Failed</h1>
-      <Link href="/cart" className="text-blue-600 underline mt-2 inline-block">
+      <p className="text-gray-600 mt-2">Order ID: {orderId}</p>
+      <Link href="/checkout" className="text-blue-600 underline mt-4 inline-block">
         Try Again
       </Link>
     </div>
