@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { supabaseAdmin } from '../../lib/supabase';  // ✅ Fixed path
 
 // GET: Fetch orders for authenticated user
 export async function GET(req: Request) {
