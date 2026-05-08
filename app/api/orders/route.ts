@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
+import { supabaseAdmin } from '../../../lib/supabase';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-// GET: Fetch orders
+// GET: Fetch orders for authenticated user
 export async function GET(req: Request) {
   try {
     const { userId } = await auth();
@@ -15,7 +10,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: orders, error } = await supabase
+    const { data: orders, error } = await supabaseAdmin
       .from('orders')
       .select('*')
       .eq('user_id', userId)
@@ -29,7 +24,7 @@ export async function GET(req: Request) {
   }
 }
 
-// POST: Create a new order (simplified)
+// POST: Create a new order (called from webhook or success page)
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -38,9 +33,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    console.log('📦 Received order data:', body); // Debug log
+    console.log('📦 Received order data:', body);
 
-    const { orderId, total, address, customerName, customerEmail, customerPhone } = body;
+    const { orderId, total, address, customerName, customerEmail, customerPhone, items } = body;
 
     // Validate required fields
     if (!orderId || !total || !customerName || !customerPhone) {
@@ -50,13 +45,13 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Insert the order
-    const { data, error } = await supabase
+    // Insert the order using admin client (bypasses RLS)
+    const { data, error } = await supabaseAdmin
       .from('orders')
       .insert({
         id: orderId,
         user_id: userId,
-        total: Math.round(total * 100), // convert to paise
+        total: Math.round(total * 100),
         status: 'paid',
         shipping_address: address || '',
         customer_name: customerName,
@@ -69,7 +64,27 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('❌ Supabase error:', error);
-      return NextResponse.json({ error: error.message, details: error }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Insert order items if provided
+    if (items && items.length > 0) {
+      const orderItems = items.map((item: any) => ({
+        order_id: orderId,
+        medicine_id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: Math.round(item.price * 100),
+      }));
+      
+      const { error: itemsError } = await supabaseAdmin
+        .from('order_items')
+        .insert(orderItems);
+      
+      if (itemsError) {
+        console.error('Order items error:', itemsError);
+        // Don't fail the whole request, just log
+      }
     }
 
     console.log('✅ Order saved successfully:', data);
