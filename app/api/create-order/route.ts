@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/app/lib/supabase';
 
 export async function POST(req: Request) {
   try {
@@ -8,12 +8,6 @@ export async function POST(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // ✅ Initialize Supabase DIRECTLY - no import needed
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
 
     const body = await req.json();
     const { amount, customerName, customerEmail, customerPhone, shippingAddress } = body;
@@ -25,10 +19,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Name and phone required' }, { status: 400 });
     }
 
-    const orderId = `MED_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    // Generate a unique order ID
+    const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
-    // Save to Supabase
-    const { error: dbError } = await supabase
+    // 1. Save order as 'pending' in database
+    const { error: dbError } = await supabaseAdmin
       .from('orders')
       .insert({
         id: orderId,
@@ -47,7 +42,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
     }
 
-    // Cashfree API
+    // 2. Call Cashfree API to create payment session
     const APP_ID = process.env.CASHFREE_APP_ID;
     const SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
     const ENV = process.env.CASHFREE_ENVIRONMENT || 'SANDBOX';
@@ -61,6 +56,21 @@ export async function POST(req: Request) {
       ? 'https://api.cashfree.com/pg/orders'
       : 'https://sandbox.cashfree.com/pg/orders';
 
+    const cashfreeBody = {
+      order_id: orderId,
+      order_amount: amount,
+      order_currency: 'INR',
+      customer_details: {
+        customer_id: userId,
+        customer_phone: customerPhone,
+        customer_name: customerName,
+        customer_email: customerEmail || '',
+      },
+      order_meta: {
+        return_url: `${BASE_URL}/payment-success?order_id={order_id}`,
+      },
+    };
+
     const cashfreeRes = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -69,37 +79,31 @@ export async function POST(req: Request) {
         'x-client-id': APP_ID,
         'x-client-secret': SECRET_KEY,
       },
-      body: JSON.stringify({
-        order_id: orderId,
-        order_amount: amount,
-        order_currency: 'INR',
-        customer_details: {
-          customer_id: userId,
-          customer_phone: customerPhone,
-          customer_name: customerName,
-          customer_email: customerEmail || '',
-        },
-        order_meta: {
-          return_url: `${BASE_URL}/payment-success?order_id={order_id}`,
-        },
-      }),
+      body: JSON.stringify(cashfreeBody),
     });
 
-    const data = await cashfreeRes.json();
+    const cashfreeData = await cashfreeRes.json();
 
     if (!cashfreeRes.ok) {
-      await supabase.from('orders').delete().eq('id', orderId);
-      return NextResponse.json({ error: data.message }, { status: cashfreeRes.status });
+      // Clean up the pending order if Cashfree creation fails
+      await supabaseAdmin.from('orders').delete().eq('id', orderId);
+      console.error('Cashfree error:', cashfreeData);
+      return NextResponse.json({ error: cashfreeData.message || 'Cashfree error' }, { status: cashfreeRes.status });
     }
+
+    // 3. Update order with Cashfree reference ID
+    await supabaseAdmin
+      .from('orders')
+      .update({ cashfree_order_id: cashfreeData.order_id })
+      .eq('id', orderId);
 
     return NextResponse.json({
       success: true,
-      payment_session_id: data.payment_session_id,
+      payment_session_id: cashfreeData.payment_session_id,
       order_id: orderId,
     });
-
   } catch (error: any) {
-    console.error('Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Server error:', error);
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
