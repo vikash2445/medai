@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { supabaseAdmin } from '../../lib/supabase';  // ✅ Fixed path
+import { createClient } from '@supabase/supabase-js';
 
-// GET: Fetch orders for authenticated user
 export async function GET(req: Request) {
   try {
     const { userId } = await auth();
@@ -10,7 +9,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: orders, error } = await supabaseAdmin
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: orders, error } = await supabase
       .from('orders')
       .select('*')
       .eq('user_id', userId)
@@ -24,7 +28,6 @@ export async function GET(req: Request) {
   }
 }
 
-// POST: Create a new order (called from webhook or success page)
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -32,21 +35,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    console.log('📦 Received order data:', body);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
+    const body = await request.json();
     const { orderId, total, address, customerName, customerEmail, customerPhone, items } = body;
 
-    // Validate required fields
     if (!orderId || !total || !customerName || !customerPhone) {
-      return NextResponse.json({ 
-        error: 'Missing required fields', 
-        received: { orderId, total, customerName, customerPhone } 
-      }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Insert the order using admin client (bypasses RLS)
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('orders')
       .insert({
         id: orderId,
@@ -63,11 +64,10 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      console.error('❌ Supabase error:', error);
+      console.error('Supabase error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Insert order items if provided
     if (items && items.length > 0) {
       const orderItems = items.map((item: any) => ({
         order_id: orderId,
@@ -76,21 +76,12 @@ export async function POST(request: Request) {
         quantity: item.quantity,
         price: Math.round(item.price * 100),
       }));
-      
-      const { error: itemsError } = await supabaseAdmin
-        .from('order_items')
-        .insert(orderItems);
-      
-      if (itemsError) {
-        console.error('Order items error:', itemsError);
-        // Don't fail the whole request, just log
-      }
+      await supabase.from('order_items').insert(orderItems);
     }
 
-    console.log('✅ Order saved successfully:', data);
     return NextResponse.json({ success: true, order: data });
   } catch (error: any) {
-    console.error('❌ Order creation error:', error);
+    console.error('Order creation error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import supabaseAdmin from '@/app/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
   try {
@@ -9,12 +9,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    console.log('📦 Received order request:', body);
-    
-    const { amount, customerName, customerEmail, customerPhone, shippingAddress, cartItems } = body;
+    // ✅ Initialize Supabase DIRECTLY - no import needed
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    // Validate
+    const body = await req.json();
+    const { amount, customerName, customerEmail, customerPhone, shippingAddress } = body;
+
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: 'Valid amount required' }, { status: 400 });
     }
@@ -22,11 +25,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Name and phone required' }, { status: 400 });
     }
 
-    // Generate order ID
-    const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    const orderId = `MED_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // Save pending order to Supabase using admin client
-    const { error: dbError } = await supabaseAdmin
+    // Save to Supabase
+    const { error: dbError } = await supabase
       .from('orders')
       .insert({
         id: orderId,
@@ -41,43 +43,23 @@ export async function POST(req: Request) {
       });
 
     if (dbError) {
-      console.error('❌ DB Error:', dbError);
+      console.error('DB Error:', dbError);
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
     }
 
-    // Check Cashfree credentials
+    // Cashfree API
     const APP_ID = process.env.CASHFREE_APP_ID;
     const SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
-    
+    const ENV = process.env.CASHFREE_ENVIRONMENT || 'SANDBOX';
+    const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
     if (!APP_ID || !SECRET_KEY) {
-      console.error('❌ Cashfree credentials missing');
       return NextResponse.json({ error: 'Payment gateway not configured' }, { status: 500 });
     }
 
-    // Call Cashfree API
-    const ENV = process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX';
     const endpoint = ENV === 'PRODUCTION'
       ? 'https://api.cashfree.com/pg/orders'
       : 'https://sandbox.cashfree.com/pg/orders';
-    
-    const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-
-    const cashfreeBody = {
-      order_id: orderId,
-      order_amount: amount,
-      order_currency: 'INR',
-      customer_details: {
-        customer_id: userId,
-        customer_phone: customerPhone,
-        customer_name: customerName,
-        customer_email: customerEmail || '',
-      },
-      order_meta: {
-        return_url: `${BASE_URL}/payment-success?order_id={order_id}`,
-      },
-    };
-
-    console.log('📤 Cashfree request:', cashfreeBody);
 
     const cashfreeRes = await fetch(endpoint, {
       method: 'POST',
@@ -87,36 +69,37 @@ export async function POST(req: Request) {
         'x-client-id': APP_ID,
         'x-client-secret': SECRET_KEY,
       },
-      body: JSON.stringify(cashfreeBody),
+      body: JSON.stringify({
+        order_id: orderId,
+        order_amount: amount,
+        order_currency: 'INR',
+        customer_details: {
+          customer_id: userId,
+          customer_phone: customerPhone,
+          customer_name: customerName,
+          customer_email: customerEmail || '',
+        },
+        order_meta: {
+          return_url: `${BASE_URL}/payment-success?order_id={order_id}`,
+        },
+      }),
     });
 
-    const cashfreeData = await cashfreeRes.json();
-    console.log('📥 Cashfree response:', cashfreeData);
+    const data = await cashfreeRes.json();
 
     if (!cashfreeRes.ok) {
-      // Clean up pending order
-      await supabaseAdmin.from('orders').delete().eq('id', orderId);
-      return NextResponse.json({ error: cashfreeData.message || 'Cashfree error' }, { status: cashfreeRes.status });
+      await supabase.from('orders').delete().eq('id', orderId);
+      return NextResponse.json({ error: data.message }, { status: cashfreeRes.status });
     }
-
-    if (!cashfreeData.payment_session_id) {
-      return NextResponse.json({ error: 'No payment session ID' }, { status: 500 });
-    }
-
-    // Update order with Cashfree reference
-    await supabaseAdmin
-      .from('orders')
-      .update({ cashfree_order_id: cashfreeData.order_id })
-      .eq('id', orderId);
 
     return NextResponse.json({
       success: true,
-      payment_session_id: cashfreeData.payment_session_id,
+      payment_session_id: data.payment_session_id,
       order_id: orderId,
     });
 
   } catch (error: any) {
-    console.error('❌ Error:', error);
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+    console.error('Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
