@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -103,30 +104,7 @@ function PaymentSuccessContent() {
           })),
         };
 
-        console.log('📤 Sending order data:', orderData);
-
-        // Save order
-        const saveRes = await fetch('/api/orders', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(orderData),
-        });
-
-        const saveData = await saveRes.json();
-
-        console.log(
-          '📡 Save order response:',
-          saveRes.status,
-          saveData
-        );
-
-        if (!saveRes.ok) {
-          console.error('❌ Failed to save order:', saveData);
-        } else {
-          console.log('✅ Order saved successfully');
-        }
+        console.log('📤 Sending order data to server:', orderData);
 
         // Clear storage
         localStorage.removeItem('checkout_address');

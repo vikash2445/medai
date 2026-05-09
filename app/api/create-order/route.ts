@@ -23,6 +23,9 @@ export async function POST(req: Request) {
     const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
     // 1. Save order as 'pending' in database
+    console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('SERVICE ROLE EXISTS:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    
     const { error: dbError } = await supabaseAdmin
       .from('orders')
       .insert({

@@ -67,7 +67,7 @@ export default function RootLayout({
             </Script>
 
             {/* ✅ User sync component – syncs Clerk user data to Supabase */}
-            <UserSync />
+           {/* <UserSync /> */}
 
             {children}
 
