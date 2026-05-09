@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { supabaseAdmin } from '@/app/lib/supabase';
+import { supabaseAdmin } from '../../lib/supabase';
 
 export async function POST(req: Request) {
   try {
@@ -45,8 +45,8 @@ export async function POST(req: Request) {
     // 2. Call Cashfree API to create payment session
     const APP_ID = process.env.CASHFREE_APP_ID;
     const SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
-    const ENV = process.env.CASHFREE_ENVIRONMENT || 'SANDBOX';
-    const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const ENV = process.env.CASHFREE_ENV || 'SANDBOX';
+    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
     if (!APP_ID || !SECRET_KEY) {
       return NextResponse.json({ error: 'Payment gateway not configured' }, { status: 500 });
