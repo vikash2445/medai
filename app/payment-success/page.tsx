@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const runtime = 'nodejs';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '../context/CartContext';
@@ -15,50 +15,88 @@ function PaymentSuccessContent() {
 
   const { clearCart } = useCart();
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<
+    'loading' | 'success' | 'error'
+  >('loading');
+
   const [message, setMessage] = useState('');
 
+  // ✅ IMPORTANT
+  // Prevents useEffect from running twice
+  const hasProcessed = useRef(false);
+
   useEffect(() => {
+    // ✅ Stop duplicate execution
+    if (hasProcessed.current) return;
+
     if (!orderId) {
       setStatus('error');
       setMessage('No order ID provided');
       return;
     }
 
+    hasProcessed.current = true;
+
     const verifyPayment = async () => {
       try {
-        // Verify payment
-        console.log('🔍 Verifying payment for order:', orderId);
+        console.log(
+          '🔍 Verifying payment for order:',
+          orderId
+        );
 
+        // 1. Verify payment
         const verifyRes = await fetch(
           `/api/verify-order?order_id=${orderId}`
         );
 
         if (!verifyRes.ok) {
-          throw new Error(`Verification failed: ${verifyRes.status}`);
+          throw new Error(
+            `Verification failed: ${verifyRes.status}`
+          );
         }
 
         const verifyData = await verifyRes.json();
 
-        console.log('✅ Verification response:', verifyData);
+        console.log(
+          '✅ Verification response:',
+          verifyData
+        );
 
         if (!verifyData.success) {
           setStatus('error');
           setMessage(
-            verifyData.error || 'Payment verification failed'
+            verifyData.error ||
+              'Payment verification failed'
           );
           return;
         }
 
-        // Get localStorage data
-        const cartItemsRaw = localStorage.getItem('mediora_cart');
-        const addressRaw = localStorage.getItem('checkout_address');
-        const pendingTotalRaw =
-          localStorage.getItem('pending_order_total');
+        // 2. Get localStorage data
+        const cartItemsRaw =
+          localStorage.getItem('mediora_cart');
 
-        console.log('📦 Cart from localStorage:', cartItemsRaw);
-        console.log('📍 Address from localStorage:', addressRaw);
-        console.log('💰 Total from localStorage:', pendingTotalRaw);
+        const addressRaw =
+          localStorage.getItem('checkout_address');
+
+        const pendingTotalRaw =
+          localStorage.getItem(
+            'pending_order_total'
+          );
+
+        console.log(
+          '📦 Cart from localStorage:',
+          cartItemsRaw
+        );
+
+        console.log(
+          '📍 Address from localStorage:',
+          addressRaw
+        );
+
+        console.log(
+          '💰 Total from localStorage:',
+          pendingTotalRaw
+        );
 
         const cartItems = cartItemsRaw
           ? JSON.parse(cartItemsRaw)
@@ -72,11 +110,15 @@ function PaymentSuccessContent() {
           ? parseFloat(pendingTotalRaw)
           : 0;
 
-        // Validate address
+        // 3. Validate data
         if (!address.name || !address.phone) {
-          console.error('❌ Missing address data:', address);
+          console.error(
+            '❌ Missing address data:',
+            address
+          );
 
           setStatus('error');
+
           setMessage(
             'Missing address information. Please contact support.'
           );
@@ -84,16 +126,20 @@ function PaymentSuccessContent() {
           return;
         }
 
-        // Prepare order data
+        // 4. Prepare order data
         const orderData = {
           orderId: orderId,
+
           total: pendingTotal,
-          address: `${address.line1 || ''}, ${address.city || ''} ${
-            address.zip || ''
-          }`.trim(),
+
+          address: `${address.line1 || ''}, ${
+            address.city || ''
+          } ${address.zip || ''}`.trim(),
 
           customerName: address.name,
+
           customerEmail: address.email || '',
+
           customerPhone: address.phone,
 
           items: cartItems.map((item: any) => ({
@@ -104,19 +150,64 @@ function PaymentSuccessContent() {
           })),
         };
 
-        console.log('📤 Sending order data to server:', orderData);
+        console.log(
+          '📤 Sending order data to server:',
+          orderData
+        );
 
-        // Clear storage
+        // 5. SAVE ORDER TO DATABASE
+        const saveRes = await fetch('/api/orders', {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+          },
+
+          body: JSON.stringify(orderData),
+        });
+
+        const saveData = await saveRes.json();
+
+        console.log(
+          '📡 Save order response:',
+          saveData
+        );
+
+        if (!saveRes.ok) {
+          console.error(
+            '❌ Failed to save order:',
+            saveData
+          );
+
+          setStatus('error');
+
+          setMessage(
+            saveData.error ||
+              'Failed to save order'
+          );
+
+          return;
+        }
+
+        // 6. Clear localStorage AFTER success
         localStorage.removeItem('checkout_address');
-        localStorage.removeItem('pending_order_total');
+
+        localStorage.removeItem(
+          'pending_order_total'
+        );
+
         localStorage.removeItem('mediora_cart');
 
-        // Clear cart context
+        // 7. Clear cart
         clearCart();
 
+        // 8. Success
         setStatus('success');
       } catch (err) {
-        console.error('❌ Payment verification error:', err);
+        console.error(
+          '❌ Payment verification error:',
+          err
+        );
 
         setStatus('error');
 
@@ -129,7 +220,7 @@ function PaymentSuccessContent() {
     verifyPayment();
   }, [orderId, clearCart]);
 
-  // Loading
+  // Loading UI
   if (status === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -144,11 +235,13 @@ function PaymentSuccessContent() {
     );
   }
 
-  // Error
+  // Error UI
   if (status === 'error') {
     return (
       <div className="max-w-md mx-auto mt-20 p-6 text-center">
-        <div className="text-red-600 text-5xl mb-4">❌</div>
+        <div className="text-red-600 text-5xl mb-4">
+          ❌
+        </div>
 
         <h1 className="text-2xl font-bold mb-2">
           Payment Issue
@@ -172,10 +265,12 @@ function PaymentSuccessContent() {
     );
   }
 
-  // Success
+  // Success UI
   return (
     <div className="max-w-md mx-auto mt-20 p-6 text-center">
-      <div className="text-green-600 text-5xl mb-4">✓</div>
+      <div className="text-green-600 text-5xl mb-4">
+        ✓
+      </div>
 
       <h1 className="text-2xl font-bold mb-2">
         Payment Successful!
@@ -183,12 +278,15 @@ function PaymentSuccessContent() {
 
       <p className="text-gray-600 mb-4">
         Your order{' '}
-        <strong className="font-mono">{orderId}</strong> has
-        been confirmed.
+        <strong className="font-mono">
+          {orderId}
+        </strong>{' '}
+        has been confirmed.
       </p>
 
       <p className="text-gray-500 mb-6">
-        You will receive an email with order details.
+        You will receive an email with order
+        details.
       </p>
 
       <div className="space-y-3">
