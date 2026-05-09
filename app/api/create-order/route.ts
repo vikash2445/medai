@@ -40,6 +40,15 @@ export async function POST(req: Request) {
         created_at: new Date().toISOString(),
       });
 
+
+    await supabaseAdmin
+  .from('order_tracking')
+  .insert({
+    order_id: orderId,
+    status: 'Order Placed',
+    note: 'Your order has been placed successfully',
+  });
+
     if (dbError) {
       console.error('DB Error:', dbError);
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });

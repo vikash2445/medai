@@ -15,8 +15,6 @@ const CATEGORIES = [
   { name: 'Fitness',            emoji: '🏋️', bg: '#f3e8ff' },
 ];
 
-const BRANDS = ['Himalaya', 'Dabur', 'Patanjali', 'Organic India', 'Nutrabay', 'Mamaearth', 'Zandu'];
-const NAV_LINKS = ['Home', 'Medicines', 'Lab Tests', 'Healthcare Devices', 'Personal Care', 'Health Articles'];
 
 const TRUST_ITEMS = [
   { icon: '🛡️', title: '100% Genuine',    sub: 'Medicines' },
@@ -613,18 +611,6 @@ export default function StorePage() {
         <Navbar cartCount={cartCount} resetAll={() => {}} showHomeLink={true} showStoreLink={false} />
 
         {/* Category Navigation */}
-        <nav className="sp-catnav">
-          <button className="sp-allcat">☰ &nbsp;All Categories ▾</button>
-          {NAV_LINKS.map(link => (
-            <span
-              key={link}
-              className={`sp-navlink${activeNav === link ? ' sp-active' : ''}`}
-              onClick={() => setActiveNav(link)}
-            >
-              {link}
-            </span>
-          ))}
-        </nav>
 
         {/* Hero Banner */}
         <div className="sp-hero">
@@ -737,42 +723,7 @@ export default function StorePage() {
           )}
         </div>
 
-        {/* Promo Banners */}
-        <div className="sp-section">
-          <div className="sp-promos">
-            <div className="sp-promo sp-promo-green">
-              <div className="sp-promo-bg-icon">📋</div>
-              <div className="sp-promo-title" style={{ color: '#1a6b3c' }}>Upload Prescription</div>
-              <div className="sp-promo-sub">Get medicines without stepping out</div>
-              <button className="sp-promo-btn sp-promo-btn-green">Upload Now</button>
-            </div>
-            <div className="sp-promo sp-promo-yellow">
-              <div className="sp-promo-bg-icon">🎁</div>
-              <div className="sp-promo-title">Flat 20% Off</div>
-              <div className="sp-promo-sub">On all medicines</div>
-              <div className="sp-promo-code">Use code: MEDIORA20</div>
-            </div>
-            <div className="sp-promo sp-promo-blue">
-              <div className="sp-promo-bg-icon">👑</div>
-              <div className="sp-promo-title" style={{ color: '#3949ab' }}>Save More with Mediora Plus</div>
-              <div className="sp-promo-sub">Join our membership &amp; enjoy exclusive benefits</div>
-              <button className="sp-promo-btn sp-promo-btn-blue">Join Now</button>
-            </div>
-          </div>
-        </div>
-
         {/* Popular Brands */}
-        <div className="sp-section">
-          <div className="sp-sec-head">
-            <div className="sp-sec-title">Popular Brands</div>
-            <span className="sp-view-all">View All</span>
-          </div>
-          <div className="sp-brands">
-            {BRANDS.map((b, i) => (
-              <div key={i} className="sp-brand-card">{b}</div>
-            ))}
-          </div>
-        </div>
 
         {/* Bottom Stats */}
         <div className="sp-stats">
