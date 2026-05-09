@@ -21,21 +21,13 @@ function PaymentSuccessContent() {
 
   const [message, setMessage] = useState('');
 
-  // ✅ IMPORTANT
-  // Prevents useEffect from running twice
-  const hasProcessed = useRef(false);
+  // Prevent duplicate execution
+  const hasVerified = useRef(false);
 
   useEffect(() => {
-    // ✅ Stop duplicate execution
-    if (hasProcessed.current) return;
+    if (!orderId || hasVerified.current) return;
 
-    if (!orderId) {
-      setStatus('error');
-      setMessage('No order ID provided');
-      return;
-    }
-
-    hasProcessed.current = true;
+    hasVerified.current = true;
 
     const verifyPayment = async () => {
       try {
@@ -44,16 +36,9 @@ function PaymentSuccessContent() {
           orderId
         );
 
-        // 1. Verify payment
         const verifyRes = await fetch(
           `/api/verify-order?order_id=${orderId}`
         );
-
-        if (!verifyRes.ok) {
-          throw new Error(
-            `Verification failed: ${verifyRes.status}`
-          );
-        }
 
         const verifyData = await verifyRes.json();
 
@@ -62,146 +47,25 @@ function PaymentSuccessContent() {
           verifyData
         );
 
-        if (!verifyData.success) {
+        if (!verifyRes.ok || !verifyData.success) {
           setStatus('error');
+
           setMessage(
             verifyData.error ||
               'Payment verification failed'
           );
-          return;
-        }
-
-        // 2. Get localStorage data
-        const cartItemsRaw =
-          localStorage.getItem('mediora_cart');
-
-        const addressRaw =
-          localStorage.getItem('checkout_address');
-
-        const pendingTotalRaw =
-          localStorage.getItem(
-            'pending_order_total'
-          );
-
-        console.log(
-          '📦 Cart from localStorage:',
-          cartItemsRaw
-        );
-
-        console.log(
-          '📍 Address from localStorage:',
-          addressRaw
-        );
-
-        console.log(
-          '💰 Total from localStorage:',
-          pendingTotalRaw
-        );
-
-        const cartItems = cartItemsRaw
-          ? JSON.parse(cartItemsRaw)
-          : [];
-
-        const address = addressRaw
-          ? JSON.parse(addressRaw)
-          : {};
-
-        const pendingTotal = pendingTotalRaw
-          ? parseFloat(pendingTotalRaw)
-          : 0;
-
-        // 3. Validate data
-        if (!address.name || !address.phone) {
-          console.error(
-            '❌ Missing address data:',
-            address
-          );
-
-          setStatus('error');
-
-          setMessage(
-            'Missing address information. Please contact support.'
-          );
 
           return;
         }
 
-        // 4. Prepare order data
-        const orderData = {
-          orderId: orderId,
-
-          total: pendingTotal,
-
-          address: `${address.line1 || ''}, ${
-            address.city || ''
-          } ${address.zip || ''}`.trim(),
-
-          customerName: address.name,
-
-          customerEmail: address.email || '',
-
-          customerPhone: address.phone,
-
-          items: cartItems.map((item: any) => ({
-            id: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-          })),
-        };
-
-        console.log(
-          '📤 Sending order data to server:',
-          orderData
-        );
-
-        // 5. SAVE ORDER TO DATABASE
-        const saveRes = await fetch('/api/orders', {
-          method: 'POST',
-
-          headers: {
-            'Content-Type': 'application/json',
-          },
-
-          body: JSON.stringify(orderData),
-        });
-
-        const saveData = await saveRes.json();
-
-        console.log(
-          '📡 Save order response:',
-          saveData
-        );
-
-        if (!saveRes.ok) {
-          console.error(
-            '❌ Failed to save order:',
-            saveData
-          );
-
-          setStatus('error');
-
-          setMessage(
-            saveData.error ||
-              'Failed to save order'
-          );
-
-          return;
-        }
-
-        // 6. Clear localStorage AFTER success
+        // Clear local storage
         localStorage.removeItem('checkout_address');
-
-        localStorage.removeItem(
-          'pending_order_total'
-        );
-
+        localStorage.removeItem('pending_order_total');
         localStorage.removeItem('mediora_cart');
 
-        // 7. Clear cart
+        // Clear cart
         clearCart();
 
-        // 8. Success
         setStatus('success');
       } catch (err) {
         console.error(
@@ -220,7 +84,7 @@ function PaymentSuccessContent() {
     verifyPayment();
   }, [orderId, clearCart]);
 
-  // Loading UI
+  // Loading
   if (status === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -235,7 +99,7 @@ function PaymentSuccessContent() {
     );
   }
 
-  // Error UI
+  // Error
   if (status === 'error') {
     return (
       <div className="max-w-md mx-auto mt-20 p-6 text-center">
@@ -265,7 +129,7 @@ function PaymentSuccessContent() {
     );
   }
 
-  // Success UI
+  // Success
   return (
     <div className="max-w-md mx-auto mt-20 p-6 text-center">
       <div className="text-green-600 text-5xl mb-4">

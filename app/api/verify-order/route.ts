@@ -4,11 +4,15 @@ import { supabaseAdmin } from '@/app/lib/supabase';
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+
     const orderId = searchParams.get('order_id');
 
     if (!orderId) {
       return NextResponse.json(
-        { success: false, error: 'Missing order_id' },
+        {
+          success: false,
+          error: 'Missing order_id',
+        },
         { status: 400 }
       );
     }
@@ -23,7 +27,7 @@ export async function GET(req: Request) {
         ? `https://api.cashfree.com/pg/orders/${orderId}`
         : `https://sandbox.cashfree.com/pg/orders/${orderId}`;
 
-    // Verify payment with Cashfree
+    // Verify payment from Cashfree
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
@@ -48,28 +52,49 @@ export async function GET(req: Request) {
       );
     }
 
-    // Payment success check
     const paymentStatus = data.order_status;
 
+    // Payment success
     if (paymentStatus === 'PAID') {
-      // Update DB
-      const { error: updateError } = await supabaseAdmin
-        .from('orders')
-        .update({
-          status: 'paid',
-        })
-        .eq('id', orderId);
+      // Check existing order
+      const { data: existingOrder, error: fetchError } =
+        await supabaseAdmin
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .single();
 
-      if (updateError) {
-        console.error('Supabase update error:', updateError);
-
+      if (fetchError || !existingOrder) {
         return NextResponse.json(
           {
             success: false,
-            error: updateError.message,
+            error: 'Order not found',
           },
-          { status: 500 }
+          { status: 404 }
         );
+      }
+
+      // Update only if not already paid
+      if (existingOrder.status !== 'paid') {
+        const { error: updateError } = await supabaseAdmin
+          .from('orders')
+          .update({
+            status: 'paid',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', orderId);
+
+        if (updateError) {
+          console.error('Supabase update error:', updateError);
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: updateError.message,
+            },
+            { status: 500 }
+          );
+        }
       }
 
       return NextResponse.json({
