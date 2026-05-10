@@ -10,7 +10,7 @@ interface Medicine {
   type: string;
   category: string;
   price: number;
-  isAntibiotic: boolean;
+  is_antibiotic: boolean;
   tags: string[];
   image: string;
   description: string;
@@ -47,33 +47,33 @@ function getCategoryIcon(cat: string) {
 }
 
 export default function StoreGrid({ onAddToCart, searchQuery = '' }: StoreGridProps) {
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [filteredMedicines, setFilteredMedicines] = useState<Medicine[]>([]);
+  const [products, setproducts] = useState<Medicine[]>([]);
+  const [filteredproducts, setFilteredproducts] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [priceRange, setPriceRange] = useState<{ min: number; max: number }>({ min: 0, max: 200 });
   const [showOnlyInStock, setShowOnlyInStock] = useState(false);
 
-  useEffect(() => { fetchMedicines(); }, []);
-  useEffect(() => { filterMedicines(); }, [medicines, searchQuery, selectedCategory, priceRange, showOnlyInStock]);
+  useEffect(() => { fetchproducts(); }, []);
+  useEffect(() => { filterproducts(); }, [products, searchQuery, selectedCategory, priceRange, showOnlyInStock]);
 
-  const fetchMedicines = async () => {
+  const fetchproducts = async () => {
     try {
-      const response = await fetch('/api/medicines');
+      const response = await fetch('/api/products');
       const data = await response.json();
-      if (data.medicines) {
-        setMedicines(data.medicines);
-        setFilteredMedicines(data.medicines);
+      if (data.products) {
+        setproducts(data.products);
+        setFilteredproducts(data.products);
       }
     } catch (error) {
-      console.error('Error fetching medicines:', error);
+      console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filterMedicines = () => {
-    let filtered = [...medicines];
+  const filterproducts = () => {
+    let filtered = [...products];
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(med =>
@@ -90,10 +90,10 @@ export default function StoreGrid({ onAddToCart, searchQuery = '' }: StoreGridPr
     if (showOnlyInStock) {
       filtered = filtered.filter(med => med.stock > 0);
     }
-    setFilteredMedicines(filtered);
+    setFilteredproducts(filtered);
   };
 
-  const categories = ['all', ...new Set(medicines.map(med => med.category))];
+  const categories = ['all', ...new Set(products.map(med => med.category))];
 
   /* ── Loading skeletons ── */
   if (loading) {
@@ -138,7 +138,7 @@ export default function StoreGrid({ onAddToCart, searchQuery = '' }: StoreGridPr
               onClick={() => setSelectedCategory(cat)}
             >
               <span>{getCategoryIcon(cat)}</span>
-              {cat === 'all' ? 'All Medicines' : cat}
+              {cat === 'all' ? 'All products' : cat}
             </button>
           ))}
         </div>
@@ -147,7 +147,7 @@ export default function StoreGrid({ onAddToCart, searchQuery = '' }: StoreGridPr
       {/* ── Top Bar ── */}
       <div className="sg-topbar">
         <p className="sg-results-label">
-          Showing <strong>{filteredMedicines.length}</strong> of {medicines.length} medicines
+          Showing <strong>{filteredproducts.length}</strong> of {products.length} products
           {searchQuery && <> for "<em style={{ color: 'var(--sage)' }}>{searchQuery}</em>"</>}
         </p>
         <div className="sg-filters">
@@ -175,10 +175,10 @@ export default function StoreGrid({ onAddToCart, searchQuery = '' }: StoreGridPr
       </div>
 
       {/* ── Grid ── */}
-      {filteredMedicines.length === 0 ? (
+      {filteredproducts.length === 0 ? (
         <div className="sg-empty">
           <div className="sg-empty-icon">🔬</div>
-          <h3 className="sg-empty-title">No medicines found</h3>
+          <h3 className="sg-empty-title">No products found</h3>
           <p className="sg-empty-sub">Try a different search term or reset your filters.</p>
           <button
             className="sg-reset-btn"
@@ -189,7 +189,7 @@ export default function StoreGrid({ onAddToCart, searchQuery = '' }: StoreGridPr
         </div>
       ) : (
         <div className="sg-grid">
-          {filteredMedicines.map((medicine, idx) => (
+          {filteredproducts.map((medicine, idx) => (
             <div
               key={medicine.id}
               className="sg-card-wrap"

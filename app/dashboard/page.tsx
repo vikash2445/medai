@@ -33,7 +33,7 @@ interface Prescription {
   id: string; 
   image_url: string; 
   extracted_text: string;
-  medicines: any; 
+  products: any; 
   created_at: string;
 }
 
@@ -487,7 +487,7 @@ export default function DashboardPage() {
   const navItems = [
     { id: 'profile', label: 'Profile', icon: '👤', desc: 'Personal information', count: null },
     { id: 'addresses', label: 'Addresses', icon: '📍', desc: 'Saved delivery spots', count: addresses.length },
-    { id: 'favorites', label: 'Favourites', icon: '❤️', desc: 'Liked medicines', count: favorites.length },
+    { id: 'favorites', label: 'Favourites', icon: '❤️', desc: 'Liked products', count: favorites.length },
     { id: 'prescriptions', label: 'Prescriptions', icon: '📄', desc: 'Uploaded prescriptions', count: prescriptions.length },
   ];
 
@@ -665,8 +665,8 @@ export default function DashboardPage() {
                   <div className="section-title-wrap">
                     <div className="section-icon">❤️</div>
                     <div>
-                      <div className="section-title">Favourite Medicines</div>
-                      <div className="section-sub">Quick access to your saved medicines</div>
+                      <div className="section-title">Favourite products</div>
+                      <div className="section-sub">Quick access to your saved products</div>
                     </div>
                   </div>
                 </div>
@@ -675,7 +675,7 @@ export default function DashboardPage() {
                     <div className="empty-icon">❤️</div>
                     <div className="empty-title">No favourites yet</div>
                     <div className="empty-sub">Heart any medicine to save it here for next time</div>
-                    <Link href="/" className="empty-link">Browse medicines →</Link>
+                    <Link href="/" className="empty-link">Browse products →</Link>
                   </div>
                 ) : (
                   <div className="fav-grid">
@@ -724,9 +724,9 @@ export default function DashboardPage() {
                             {new Date(pres.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
                           </div>
                           <div className="rx-text">{pres.extracted_text}</div>
-                          {pres.medicines?.length > 0 && (
+                          {pres.products?.length > 0 && (
                             <div className="rx-meds">
-                              {pres.medicines.map((m: string, i: number) => (
+                              {pres.products.map((m: string, i: number) => (
                                 <span key={i} className="rx-med-tag">{m}</span>
                               ))}
                             </div>

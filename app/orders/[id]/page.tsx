@@ -25,7 +25,7 @@ const STEP_META: Record<string, { icon: string; label: string; desc: string }> =
   processing:       { icon: '⚙️', label: 'Processing',     desc: 'Preparing your order' },
   shipped:          { icon: '📦', label: 'Shipped',         desc: 'On the way to you' },
   out_for_delivery: { icon: '🚚', label: 'Out for Delivery',desc: 'Almost there!' },
-  delivered:        { icon: '🎉', label: 'Delivered',       desc: 'Enjoy your medicines' },
+  delivered:        { icon: '🎉', label: 'Delivered',       desc: 'Enjoy your products' },
 };
 
 function getStepIndex(status: string) {

@@ -24,7 +24,7 @@ export const corrections: Record<string, string> = {
 };
 
 // Medicine database
-export const medicines: Record<string, MedicineInfo> = {
+export const products: Record<string, MedicineInfo> = {
   'Paracetamol': {
     brandNames: ['Crocin', 'Dolo', 'PCM'],
     defaultDosage: '500mg',
@@ -71,7 +71,7 @@ export const medicines: Record<string, MedicineInfo> = {
 
 export const medicalDictionary = {
   corrections,
-  medicines,
+  products,
   
   findBestMatch(text: string): { medicine: string; info: MedicineInfo; confidence: string } | null {
     const lowerText = text.toLowerCase();
@@ -79,7 +79,7 @@ export const medicalDictionary = {
     // Check corrections first
     for (const [misspelled, correct] of Object.entries(corrections)) {
       if (lowerText.includes(misspelled)) {
-        const info = medicines[correct];
+        const info = products[correct];
         if (info) {
           return { medicine: correct, info, confidence: 'high' };
         }
@@ -87,7 +87,7 @@ export const medicalDictionary = {
     }
     
     // Check medicine names
-    for (const [medicine, info] of Object.entries(medicines)) {
+    for (const [medicine, info] of Object.entries(products)) {
       if (lowerText.includes(medicine.toLowerCase())) {
         return { medicine, info, confidence: 'high' };
       }

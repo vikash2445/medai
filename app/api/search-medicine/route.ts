@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     if (!query || query.trim() === '') {
       return NextResponse.json(
-        { error: 'Query is required', medicines: [] },
+        { error: 'Query is required', products: [] },
         { status: 400 }
       );
     }
@@ -46,105 +46,105 @@ export async function POST(request: Request) {
     const searchTerm = processQuery(query);
     console.log('📝 Processed search term:', searchTerm);
 
-    let medicines: any[] = [];
+    let products: any[] = [];
 
     // Method 1: Search by name (ilike - case insensitive)
     const { data: nameResults, error: nameError } = await supabase
-      .from('medicines')
+      .from('products')
       .select('*')
       .ilike('name', `%${searchTerm}%`)
       .limit(10);
 
     if (!nameError && nameResults && nameResults.length > 0) {
-      medicines = nameResults;
-      console.log(`✅ Found ${medicines.length} medicines by name`);
+      products = nameResults;
+      console.log(`✅ Found ${products.length} products by name`);
     }
 
     // Method 2: Search by generic name
-    if (medicines.length === 0) {
+    if (products.length === 0) {
       const { data: genericResults, error: genericError } = await supabase
-        .from('medicines')
+        .from('products')
         .select('*')
         .ilike('generic', `%${searchTerm}%`)
         .limit(10);
 
       if (!genericError && genericResults && genericResults.length > 0) {
-        medicines = genericResults;
-        console.log(`✅ Found ${medicines.length} medicines by generic name`);
+        products = genericResults;
+        console.log(`✅ Found ${products.length} products by generic name`);
       }
     }
 
     // Method 3: Search by category
-    if (medicines.length === 0) {
+    if (products.length === 0) {
       const { data: categoryResults, error: categoryError } = await supabase
-        .from('medicines')
+        .from('products')
         .select('*')
         .ilike('category', `%${searchTerm}%`)
         .limit(10);
 
       if (!categoryError && categoryResults && categoryResults.length > 0) {
-        medicines = categoryResults;
-        console.log(`✅ Found ${medicines.length} medicines by category`);
+        products = categoryResults;
+        console.log(`✅ Found ${products.length} products by category`);
       }
     }
 
     // Method 4: Search by tags (using PostgreSQL array containment)
-    if (medicines.length === 0) {
+    if (products.length === 0) {
       // PostgreSQL syntax for array containment
       const { data: tagResults, error: tagError } = await supabase
-        .from('medicines')
+        .from('products')
         .select('*')
         .filter('tags', 'cs', `{${searchTerm}}`)
         .limit(10);
 
       if (!tagError && tagResults && tagResults.length > 0) {
-        medicines = tagResults;
-        console.log(`✅ Found ${medicines.length} medicines by tags`);
+        products = tagResults;
+        console.log(`✅ Found ${products.length} products by tags`);
       }
     }
 
-    // Format medicines for frontend (matching your database structure)
-    const formattedMedicines = medicines.map(med => ({
+    // Format products for frontend (matching your database structure)
+    const formattedproducts = products.map(med => ({
       id: med.id,
       name: med.name,
       generic: med.generic,
       type: med.type,
       category: med.category,
-      emoji: med.isAntibiotic ? '💊⚠️' : '💊',
+      emoji: med.is_antibiotic ? '💊⚠️' : '💊',
       price: med.price,
-      description: `${med.generic} medicine for ${med.category}. ${med.isAntibiotic ? 'Antibiotic - Complete full course.' : 'OTC medicine for relief.'}`,
+      description: `${med.generic} medicine for ${med.category}. ${med.is_antibiotic ? 'Antibiotic - Complete full course.' : 'OTC medicine for relief.'}`,
       tags: med.tags || [med.category],
       recommended: false,
       drugName: med.generic,
       image: med.image || `https://source.unsplash.com/200x200/?${med.generic}`,
-      isAntibiotic: med.isAntibiotic,
+      is_antibiotic: med.is_antibiotic,
       dosage: getDosage(med.name),
       usage: {
         frequency: getFrequency(med.category),
-        duration: med.isAntibiotic ? '5 days' : '3 days',
+        duration: med.is_antibiotic ? '5 days' : '3 days',
         totalTablets: 10
       },
       quantitySelector: {
-        allowLoose: !med.isAntibiotic,
+        allowLoose: !med.is_antibiotic,
         tabletsPerStrip: 10,
         minQuantity: 1,
         maxQuantity: 30,
         defaultQuantity: 6,
         step: 1,
-        recommendedType: med.isAntibiotic ? 'strip' : 'loose',
-        note: med.isAntibiotic ? '⚠️ Complete full course is required' : 'You can buy loose tablets or full strip'
+        recommendedType: med.is_antibiotic ? 'strip' : 'loose',
+        note: med.is_antibiotic ? '⚠️ Complete full course is required' : 'You can buy loose tablets or full strip'
       },
       pricePerTablet: Math.round(med.price / 10),
     }));
 
     return NextResponse.json({ 
-      medicines: formattedMedicines,
+      products: formattedproducts,
       searchTerm: searchTerm
     });
   } catch (error) {
     console.error('Search error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', medicines: [] },
+      { error: 'Internal server error', products: [] },
       { status: 500 }
     );
   }

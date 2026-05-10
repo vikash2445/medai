@@ -85,7 +85,7 @@ export default function CheckoutPage() {
         <div className="co-empty">
           <div className="co-empty-icon">🛒</div>
           <h2 className="co-empty-title">Your cart is empty</h2>
-          <p className="co-empty-sub">Add some medicines before checking out.</p>
+          <p className="co-empty-sub">Add some products before checking out.</p>
           <Link href="/store" className="co-btn-primary" style={{ textDecoration: 'none', display: 'inline-block', marginTop: 8 }}>
             Browse Store →
           </Link>
@@ -190,7 +190,7 @@ export default function CheckoutPage() {
                 <div className="co-card-icon">📍</div>
                 <div>
                   <div className="co-card-title">Delivery Address</div>
-                  <div className="co-card-sub">Where should we deliver your medicines?</div>
+                  <div className="co-card-sub">Where should we deliver your products?</div>
                 </div>
               </div>
 
@@ -390,7 +390,7 @@ export default function CheckoutPage() {
             </div>
             <h2 className="co-success-title">Order Confirmed!</h2>
             <p className="co-success-sub">
-              Your medicines are on their way. Estimated delivery in <strong>1–3 business days</strong>.
+              Your products are on their way. Estimated delivery in <strong>1–3 business days</strong>.
             </p>
             <div className="co-order-id">
               Order ID: <strong>{orderId || `MED-${Math.random().toString(36).slice(2, 8).toUpperCase()}`}</strong>
@@ -456,7 +456,7 @@ function OrderSummary({
 
       <div className="co-summary-note">
         <span>🛡️</span>
-        <span>100% genuine medicines. Easy 7-day returns.</span>
+        <span>100% genuine products. Easy 7-day returns.</span>
       </div>
     </div>
   );

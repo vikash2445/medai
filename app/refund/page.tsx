@@ -50,7 +50,7 @@ export default function RefundPage() {
               "✅ Wrong Product: Received incorrect medicine",
               "✅ Expired Product: Received expired medication",
               "❌ Change of Mind: Not accepted due to safety regulations",
-              "❌ Opened Packaging: Cannot return opened or used medicines"
+              "❌ Opened Packaging: Cannot return opened or used products"
             ]
           },
           { 
@@ -111,7 +111,7 @@ export default function RefundPage() {
         {/* Additional Sections */}
         {[
           { title: "Delivery Issues", items: ["Failed Delivery: If delivery fails due to incorrect address, re-delivery charges may apply", "Delayed Delivery: If order is delayed beyond 7 days, you may cancel for a full refund", "Missing Items: Report missing items within 24 hours of delivery"] },
-          { title: "Prescription Medicines", items: ["Prescription medicines require a valid doctor's prescription. We cannot accept returns on prescription medicines once delivered due to safety regulations."] },
+          { title: "Prescription products", items: ["Prescription products require a valid doctor's prescription. We cannot accept returns on prescription products once delivered due to safety regulations."] },
           { title: "Contact for Refunds", items: ["📧 Email: refunds@mediora.fit", "📞 Phone: +91-9649418425", "⏰ Hours: Monday-Saturday, 10 AM - 7 PM IST"] },
         ].map((section, idx) => (
           <div key={idx} className="bg-white rounded-2xl border border-stone mb-4 hover:shadow-sm transition">

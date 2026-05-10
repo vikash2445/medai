@@ -15,7 +15,7 @@ interface MedicineDetail {
   category: string;
   type: string;
   price: number;
-  isAntibiotic: boolean;
+  is_antibiotic: boolean;
   tags: string[];
   image: string | null;
   description: string | null;
@@ -46,7 +46,7 @@ const PRODUCT_DETAILS = [
 
 const FAQ = [
   { q: 'How long does it take to work?', a: 'Effects usually start within 30-60 minutes and last for 4-6 hours.' },
-  { q: 'Can I take this with other medicines?', a: 'Consult your doctor before combining with other medications.' },
+  { q: 'Can I take this with other products?', a: 'Consult your doctor before combining with other medications.' },
   { q: 'Is it safe during pregnancy?', a: 'Always take medical advice before using any medicine during pregnancy.' },
 ];
 
@@ -101,7 +101,7 @@ export default function ProductDetailPage() {
       if (!id) return;
       try {
         const { data, error } = await supabase
-          .from('medicines')
+          .from('products')
           .select('*')
           .eq('id', Number(id))
           .single();
@@ -111,7 +111,7 @@ export default function ProductDetailPage() {
         // Fetch related products from same category
         if (data.category) {
           const { data: related } = await supabase
-            .from('medicines')
+            .from('products')
             .select('id, name, price, image, category')
             .eq('category', data.category)
             .neq('id', data.id)
@@ -186,7 +186,7 @@ export default function ProductDetailPage() {
       price: product.price,
       quantity: qty,
       category: product.category,
-      emoji: product.isAntibiotic ? '💊⚠️' : '💊',
+      emoji: product.is_antibiotic ? '💊⚠️' : '💊',
       image: product.image || undefined,
     });
     showToast(`✓ Added to cart — ${qty} item${qty > 1 ? 's' : ''}`);
@@ -466,7 +466,7 @@ export default function ProductDetailPage() {
           <div className="pdp-gallery">
             <div className="pdp-main-img">
               <img src={galleryImages[activeImg]} alt={product.name} className={imgFading ? 'fading' : ''} />
-              <div className="pdp-badge">{product.isAntibiotic ? 'Prescription' : 'OTC'}</div>
+              <div className="pdp-badge">{product.is_antibiotic ? 'Prescription' : 'OTC'}</div>
               <button
                 className="pdp-wish"
                 onClick={() => {
@@ -582,7 +582,7 @@ export default function ProductDetailPage() {
             <div className="pdp-desc-grid">
               <div>
                 <p className="pdp-desc-lead">{product.name} – trusted by thousands for effective relief.</p>
-                <p className="pdp-desc-body">{product.description || `${product.generic} is used for ${product.category.toLowerCase()}. ${product.isAntibiotic ? 'Antibiotic – complete full course as prescribed.' : 'OTC medicine for relief.'}`}</p>
+                <p className="pdp-desc-body">{product.description || `${product.generic} is used for ${product.category.toLowerCase()}. ${product.is_antibiotic ? 'Antibiotic – complete full course as prescribed.' : 'OTC medicine for relief.'}`}</p>
                 {product.tags && product.tags.length > 0 && (
                   <>
                     <h3 className="text-md font-semibold mt-4 mb-2">Key Benefits</h3>

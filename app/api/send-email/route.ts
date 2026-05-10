@@ -91,7 +91,7 @@ export async function POST(req: Request) {
             <div class="section-title">💊 What's Next?</div>
             <ol style="padding-left: 20px;">
               <li>Your order will be packed within 2 hours</li>
-              <li>Medicines will be delivered within 45-90 minutes</li>
+              <li>products will be delivered within 45-90 minutes</li>
               <li>You'll receive an SMS when out for delivery</li>
             </ol>
             

@@ -561,10 +561,10 @@ export default async function OrdersPage() {
                   <div className="op-empty-icon">🛍️</div>
                   <h2 className="op-empty-title">No orders yet</h2>
                   <p className="op-empty-sub">
-                    Looks like you haven't placed any orders. Browse our medicines and get started!
+                    Looks like you haven't placed any orders. Browse our products and get started!
                   </p>
                   <Link href="/store" className="op-shop-btn">
-                    Browse Medicines →
+                    Browse products →
                   </Link>
                 </div>
               )}

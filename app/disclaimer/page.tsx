@@ -83,7 +83,7 @@ export default function DisclaimerPage() {
             </h2>
             <p className="text-neutral-700 leading-relaxed text-[15px]">
               Mediora only recommends over-the-counter (OTC) medications. 
-              Prescription medicines require consultation with a licensed doctor.
+              Prescription products require consultation with a licensed doctor.
             </p>
           </section>
 

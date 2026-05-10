@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     template: "%s | Mediora",
   },
   description:
-    "Order medicines online and get AI-based health suggestions instantly with Mediora.",
+    "Order products online and get AI-based health suggestions instantly with Mediora.",
 };
 
 export const viewport: Viewport = {

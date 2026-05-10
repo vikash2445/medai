@@ -90,7 +90,7 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
     "prevention": "भविष्य में यह बीमारी न हो इसके लिए क्या करें"
   },
 
-  "medicines": {
+  "products": {
     "disclaimer": "ये सामान्य जानकारी है — डॉक्टर की सलाह के बिना कोई दवाई न लें।",
     "otcOptions": [
       { "name": "दवाई का नाम", "use": "किसलिए", "caution": "सावधानी" }
@@ -199,7 +199,7 @@ function getDetailedFallback(query: string) {
         week1: 'रोजाना 15-20 मिनट पैदल चलें। Core strengthening exercises शुरू करें। वजन न उठाएं।',
         prevention: 'कुर्सी पर सीधे बैठें, हर 45 मिनट पर उठें। Core muscles के लिए Plank करें। सोने के लिए कठोर गद्दा उपयोग करें।'
       },
-      medicines: {
+      products: {
         disclaimer: 'ये सामान्य जानकारी है — डॉक्टर की सलाह के बिना कोई दवाई न लें।',
         otcOptions: [
           { name: 'Ibuprofen (Combiflam)', use: 'दर्द और सूजन के लिए', caution: 'खाली पेट न लें, 3 दिन से ज्यादा न लें' },
@@ -281,7 +281,7 @@ function getDetailedFallback(query: string) {
         week1: 'बुखार उतरने के बाद भी 2-3 दिन आराम करें — शरीर को recover करने दें।',
         prevention: 'हाथ बार-बार साबुन से धोएं। भीड़ में मास्क पहनें। Immunity बढ़ाने के लिए Vitamin C और Zinc लें।'
       },
-      medicines: {
+      products: {
         disclaimer: 'ये सामान्य जानकारी है — डॉक्टर की सलाह के बिना कोई दवाई न लें।',
         otcOptions: [
           { name: 'Paracetamol 500mg (Crocin/Dolo)', use: 'बुखार और दर्द के लिए', caution: '6 घंटे से पहले दूसरी खुराक न लें' },
@@ -361,7 +361,7 @@ function getDetailedFallback(query: string) {
         week1: 'Headache Diary बनाएं — कब, क्यों, कितनी देर? Pattern समझें।',
         prevention: 'Screen time कम करें, हर 45 मिनट पर 5 मिनट का break लें। नियमित नींद, पानी, और व्यायाम।'
       },
-      medicines: {
+      products: {
         disclaimer: 'ये सामान्य जानकारी है — डॉक्टर की सलाह के बिना कोई दवाई न लें।',
         otcOptions: [
           { name: 'Paracetamol 500mg', use: 'हल्के से मध्यम सिर दर्द', caution: '4 घंटे से पहले दूसरी खुराक न लें' },
@@ -441,7 +441,7 @@ function getDetailedFallback(query: string) {
         week1: 'ठीक होने पर बाहर जाएं लेकिन मास्क पहनें। Vitamin C supplement शुरू करें।',
         prevention: 'हाथ बार-बार धोएं। Zinc और Vitamin C रोजाना लें। भीड़ में मास्क पहनें।'
       },
-      medicines: {
+      products: {
         disclaimer: 'ये सामान्य जानकारी है — डॉक्टर की सलाह के बिना कोई दवाई न लें।',
         otcOptions: [
           { name: 'Cetrizine (Zyrtec)', use: 'बहती नाक और छींक के लिए', caution: 'नींद आ सकती है — रात को लें' },
@@ -511,7 +511,7 @@ function getDetailedFallback(query: string) {
       week1: 'नियमित व्यायाम और संतुलित भोजन पर ध्यान दें।',
       prevention: 'नियमित health checkup करवाएं। तनाव कम करें। नींद पूरी लें।'
     },
-    medicines: {
+    products: {
       disclaimer: 'ये सामान्य जानकारी है — डॉक्टर की सलाह के बिना कोई दवाई न लें।',
       otcOptions: []
     },

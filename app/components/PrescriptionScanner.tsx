@@ -6,16 +6,16 @@ import { preprocessImage } from '../lib/imagePreprocessing';
 import { medicalDictionary, calculateConfidence } from '../lib/medicalDictionary';
 
 interface PrescriptionScannerProps {
-  onMedicinesDetected: (medicines: any[]) => void;
+  onproductsDetected: (products: any[]) => void;
   onSearchQuery?: (query: string) => void;
 }
 
-export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery }: PrescriptionScannerProps) {
+export default function PrescriptionScanner({ onproductsDetected, onSearchQuery }: PrescriptionScannerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState('');
-  const [detectedMedicines, setDetectedMedicines] = useState<string[]>([]);
+  const [detectedproducts, setDetectedproducts] = useState<string[]>([]);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [progress, setProgress] = useState(0);
   const [step, setStep] = useState('');
@@ -42,7 +42,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     setPreviewUrl(url);
     setScanning(true);
     setExtractedText('');
-    setDetectedMedicines([]);
+    setDetectedproducts([]);
     setAnalysisResult(null);
     setProgress(10);
     setStep('📷 Reading prescription image...');
@@ -91,10 +91,10 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
       setAnalysisResult(analysis);
       setProgress(95);
       
-      if (analysis.medicines && analysis.medicines.length > 0) {
-        setStep('✅ Verifying medicines...');
+      if (analysis.products && analysis.products.length > 0) {
+        setStep('✅ Verifying products...');
         
-        const enhancedMedicines = analysis.medicines.map((med: any, idx: number) => {
+        const enhancedproducts = analysis.products.map((med: any, idx: number) => {
           const dictMatch = medicalDictionary.findBestMatch(med.name);
           
           return {
@@ -116,21 +116,21 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
               totalTablets: med.totalTablets || 10
             },
             quantitySelector: {
-              allowLoose: med.isAntibiotic ? false : true,
+              allowLoose: med.is_antibiotic ? false : true,
               tabletsPerStrip: 10,
               minQuantity: 1,
               maxQuantity: 30,
               defaultQuantity: med.totalTablets || 10,
               step: 1,
-              recommendedType: med.isAntibiotic ? 'strip' : 'loose',
-              note: med.isAntibiotic ? '⚠️ Complete full course is required. Do not stop early.' : 'You can buy loose tablets or full strip'
+              recommendedType: med.is_antibiotic ? 'strip' : 'loose',
+              note: med.is_antibiotic ? '⚠️ Complete full course is required. Do not stop early.' : 'You can buy loose tablets or full strip'
             },
             pricePerTablet: dictMatch?.info?.pricePerTablet || 5,
-            isAntibiotic: med.type?.toLowerCase() === 'antibiotic' || false
+            is_antibiotic: med.type?.toLowerCase() === 'antibiotic' || false
           };
         });
         
-        onMedicinesDetected(enhancedMedicines);
+        onproductsDetected(enhancedproducts);
         
         if (onSearchQuery && analysis.disease?.name) {
           onSearchQuery(`Treatment for ${analysis.disease.name}`);
@@ -143,15 +143,15 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
           setAnalysisResult(null);
         }, 1500);
       } else {
-        setStep('🔍 Searching for medicines...');
-        const medicines = extractMedicineNamesWithDictionary(text);
-        if (medicines.length > 0) {
-          const medicineResults = await searchMedicines(medicines);
-          onMedicinesDetected(medicineResults);
+        setStep('🔍 Searching for products...');
+        const products = extractMedicineNamesWithDictionary(text);
+        if (products.length > 0) {
+          const medicineResults = await searchproducts(products);
+          onproductsDetected(medicineResults);
           setIsOpen(false);
           setPreviewUrl(null);
         } else {
-          alert('No medicines detected. Please try a clearer image or type manually.');
+          alert('No products detected. Please try a clearer image or type manually.');
         }
       }
     } catch (error) {
@@ -192,7 +192,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
 
   // Enhanced medicine extraction with medical dictionary
   function extractMedicineNamesWithDictionary(text: string): string[] {
-    const commonMedicines = [
+    const commonproducts = [
       'Paracetamol', 'Ibuprofen', 'Cetirizine', 'Loratadine', 'Omeprazole',
       'Amoxicillin', 'Azithromycin', 'Dolo', 'Crocin', 'Combiflam',
       'Levocetirizine', 'Montelukast', 'Pantoprazole', 'Rabeprazole',
@@ -202,7 +202,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     const found: string[] = [];
     const lowerText = text.toLowerCase();
     
-    for (const med of commonMedicines) {
+    for (const med of commonproducts) {
       if (lowerText.includes(med.toLowerCase())) {
         found.push(med);
       }
@@ -234,29 +234,29 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
   const getFallbackAnalysis = (text: string) => {
     const lowerText = text.toLowerCase();
     let disease = "General Health Condition";
-    let medicines: any[] = [];
+    let products: any[] = [];
     
     if (lowerText.includes("fever") || lowerText.includes("temperature")) {
       disease = "Fever";
-      medicines = [
+      products = [
         { name: "Paracetamol 500mg", type: "Analgesic", dosage: "1 tablet every 6 hours", duration: "3-5 days", purpose: "Reduces fever and mild pain" },
         { name: "Ibuprofen 400mg", type: "NSAID", dosage: "1 tablet every 8 hours", duration: "3-5 days", purpose: "Reduces fever and body aches" }
       ];
     } else if (lowerText.includes("cough") || lowerText.includes("cold")) {
       disease = "Upper Respiratory Infection";
-      medicines = [
+      products = [
         { name: "Cold & Flu Tablet", type: "Combination", dosage: "1 tablet every 6 hours", duration: "5 days", purpose: "Relieves cold and cough symptoms" },
         { name: "Cough Syrup DM", type: "Cough Suppressant", dosage: "10ml every 8 hours", duration: "5 days", purpose: "Suppresses dry cough" }
       ];
     } else if (lowerText.includes("headache") || lowerText.includes("migraine")) {
       disease = "Headache";
-      medicines = [
+      products = [
         { name: "Ibuprofen 400mg", type: "NSAID", dosage: "1 tablet every 8 hours", duration: "3 days", purpose: "Relieves headache pain" },
         { name: "Paracetamol 500mg", type: "Analgesic", dosage: "1 tablet every 6 hours", duration: "3 days", purpose: "Pain relief" }
       ];
     } else {
       const foundMeds = extractMedicineNamesWithDictionary(text);
-      medicines = foundMeds.map((name, idx) => ({
+      products = foundMeds.map((name, idx) => ({
         name: `${name} 500mg`,
         type: "Medicine",
         dosage: "As prescribed",
@@ -267,13 +267,13 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     
     return {
       disease: { name: disease, description: `Based on your prescription, this condition requires proper medication.` },
-      medicines: medicines,
+      products: products,
       healthTips: [
         "Complete the full course of prescribed medication",
         "Get plenty of rest and stay hydrated",
         "Avoid alcohol and smoking during treatment",
         "Monitor your symptoms and consult doctor if they worsen",
-        "Store medicines as per instructions on the package"
+        "Store products as per instructions on the package"
       ],
       dietPlan: {
         foodsToEat: ["Warm soups", "Herbal tea", "Fresh fruits", "Light meals", "Honey with warm water"],
@@ -281,7 +281,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
         recommendations: "Eat light, easily digestible foods. Avoid heavy, oily, or spicy meals until recovery."
       },
       lifestyleAdvice: [
-        "Take medicines on time as prescribed",
+        "Take products on time as prescribed",
         "Get adequate sleep (7-8 hours)",
         "Avoid stress and practice deep breathing",
         "Wash hands frequently to prevent infection",
@@ -290,7 +290,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
     };
   };
 
-  const searchMedicines = async (medicineNames: string[]): Promise<any[]> => {
+  const searchproducts = async (medicineNames: string[]): Promise<any[]> => {
     const results: any[] = [];
     
     for (let i = 0; i < medicineNames.length; i++) {
@@ -302,8 +302,8 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
           body: JSON.stringify({ query: `Recommend ${name} medicine` }),
         });
         const data = await response.json();
-        if (data.medicines && data.medicines.length > 0) {
-          results.push({ ...data.medicines[0], id: Date.now() + i });
+        if (data.products && data.products.length > 0) {
+          results.push({ ...data.products[0], id: Date.now() + i });
         } else {
           results.push({
             id: Date.now() + i,
@@ -422,13 +422,13 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
                       <div className="text-3xl mb-2">✅</div>
                       <p className="text-green-600 font-semibold">Prescription Analyzed!</p>
                       <p className="text-sm text-gray-600 mt-1">
-                        Detected: {analysisResult.medicines?.length || 0} medicines
+                        Detected: {analysisResult.products?.length || 0} products
                       </p>
                       <button
                         onClick={() => {
                           setPreviewUrl(null);
                           setExtractedText('');
-                          setDetectedMedicines([]);
+                          setDetectedproducts([]);
                           setAnalysisResult(null);
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
@@ -445,11 +445,11 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
                           <p className="text-xs text-gray-600">{extractedText.substring(0, 200)}...</p>
                         </div>
                       )}
-                      {detectedMedicines.length > 0 && (
+                      {detectedproducts.length > 0 && (
                         <div className="mt-3">
-                          <p className="font-semibold text-sm text-[#0fa381]">Detected Medicines:</p>
+                          <p className="font-semibold text-sm text-[#0fa381]">Detected products:</p>
                           <div className="flex flex-wrap gap-2 mt-1">
-                            {detectedMedicines.map((med, idx) => (
+                            {detectedproducts.map((med, idx) => (
                               <span key={idx} className="bg-[#e6f7f3] text-[#0a7860] px-2 py-1 rounded-full text-xs">
                                 {med}
                               </span>
@@ -461,7 +461,7 @@ export default function PrescriptionScanner({ onMedicinesDetected, onSearchQuery
                         onClick={() => {
                           setPreviewUrl(null);
                           setExtractedText('');
-                          setDetectedMedicines([]);
+                          setDetectedproducts([]);
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         className="mt-4 text-red-500 text-sm"

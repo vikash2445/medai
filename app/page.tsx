@@ -53,7 +53,7 @@ interface Medicine {
   image?: string;
   dosage?: string;
   category?: string;
-  isAntibiotic?: boolean;
+  is_antibiotic?: boolean;
   usage?: {
     frequency: string;
     duration: string;
@@ -73,7 +73,7 @@ interface Medicine {
   estimatedTotalPrice?: number;
 }
 interface CartItem extends Medicine { qty: number; }
-interface AnalysisResult { summary: string; medicines: Medicine[]; notes?: string[]; }
+interface AnalysisResult { summary: string; products: Medicine[]; notes?: string[]; }
 interface Address { name: string; line1: string; city: string; zip: string; phone: string; email?: string; }
 
 // ========== CSS (your full CSS – unchanged) ==========
@@ -401,12 +401,12 @@ async function analyzeSymptoms(query: string): Promise<{ result?: AnalysisResult
 
     const dbData = await dbResponse.json();
 
-    if (dbResponse.ok && dbData.medicines && dbData.medicines.length > 0) {
-      console.log("✅ Found medicines in database:", dbData.medicines.length);
+    if (dbResponse.ok && dbData.products && dbData.products.length > 0) {
+      console.log("✅ Found products in database:", dbData.products.length);
       
       const result: AnalysisResult = {
-        summary: `Based on your search "${query}", here are the medicines we found. ${dbData.usedFallback ? 'We showed general recommendations since no exact match was found.' : ''}`,
-        medicines: dbData.medicines.map((med: any, idx: number) => ({
+        summary: `Based on your search "${query}", here are the products we found. ${dbData.usedFallback ? 'We showed general recommendations since no exact match was found.' : ''}`,
+        products: dbData.products.map((med: any, idx: number) => ({
           ...med,
           id: med.id,
           recommended: idx === 0,
@@ -436,7 +436,7 @@ async function analyzeSymptoms(query: string): Promise<{ result?: AnalysisResult
       return { error: data.error || `Server error ${response.status}` };
     }
 
-    if (!data.medicines || !Array.isArray(data.medicines)) {
+    if (!data.products || !Array.isArray(data.products)) {
       return { error: "AI returned an unexpected format" };
     }
 
@@ -533,9 +533,9 @@ export default function MedAI() {
     }
   };
 
-  const handlePrescriptionMedicines = async (medicines: any[]) => {
-    medicines.forEach(medicine => addToCart({ ...medicine, quantity: 1 }));
-    alert(`Added ${medicines.length} medicine(s) from prescription to cart!`);
+  const handlePrescriptionproducts = async (products: any[]) => {
+    products.forEach(medicine => addToCart({ ...medicine, quantity: 1 }));
+    alert(`Added ${products.length} medicine(s) from prescription to cart!`);
   };
 
   const resetAll = () => {
@@ -587,7 +587,7 @@ export default function MedAI() {
             <button className={`voice-btn flex-1 ${recording ? "recording" : ""}`} onClick={toggleVoice}>
               {recording ? "🔴 Recording… tap to stop" : "🎙️ Describe with voice"}
             </button>
-            <PrescriptionScanner onMedicinesDetected={handlePrescriptionMedicines} onSearchQuery={handleAnalyze} />
+            <PrescriptionScanner onproductsDetected={handlePrescriptionproducts} onSearchQuery={handleAnalyze} />
           </div>
           <button className="analyze-btn" onClick={handleAnalyze} disabled={!query.trim() || loading}>
             {loading ? "Analyzing…" : "Find Medicine →"}
@@ -641,7 +641,7 @@ export default function MedAI() {
           )}
 
           <div className="meds-grid">
-  {results.medicines.map((med, idx) => {
+  {results.products.map((med, idx) => {
     // Safely get price (fallback to 0 if missing)
     const price = med.price ?? med.pricePerTablet ?? 0;
     
@@ -870,17 +870,17 @@ export default function MedAI() {
       </div>
     )}
 
-    {/* Medicines Disclaimer */}
-    {healthData.medicines && (
+    {/* products Disclaimer */}
+    {healthData.products && (
       <div className="bg-red-50 rounded-xl p-5 border border-red-200">
         <div className="flex items-center gap-3 mb-3">
           <span className="text-2xl">💊</span>
           <h3 className="font-bold text-lg text-red-800">दवाइयाँ</h3>
         </div>
-        <p className="text-red-700 text-sm mb-3">{healthData.medicines.disclaimer}</p>
-        {healthData.medicines.otcOptions && healthData.medicines.otcOptions.length > 0 && (
+        <p className="text-red-700 text-sm mb-3">{healthData.products.disclaimer}</p>
+        {healthData.products.otcOptions && healthData.products.otcOptions.length > 0 && (
           <div className="space-y-2">
-            {healthData.medicines.otcOptions.map((med: any, idx: number) => (
+            {healthData.products.otcOptions.map((med: any, idx: number) => (
               <div key={idx} className="bg-white rounded-lg p-2">
                 <p className="font-semibold text-gray-800">{med.name}</p>
                 <p className="text-xs text-gray-600">उपयोग: {med.use}</p>

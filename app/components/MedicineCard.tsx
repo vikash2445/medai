@@ -8,7 +8,7 @@ interface Medicine {
   dosage?: string;
   type?: string;
   category?: string;
-  isAntibiotic?: boolean;
+  is_antibiotic?: boolean;
   description?: string;
   emoji?: string;
   price?: number;
@@ -79,7 +79,7 @@ export default function MedicineCard({ medicine, onAddToCart, isRecommended = fa
             {medicine.category || 'Medicine'}
           </span>
         </div>
-        {medicine.isAntibiotic && (
+        {medicine.is_antibiotic && (
           <div className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full">
             ⚠️ Antibiotic
           </div>

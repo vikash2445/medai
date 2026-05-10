@@ -74,7 +74,7 @@ Return ONLY valid JSON in this exact format (no markdown, no backticks):
     "severity": "mild",
     "duration": "Expected recovery time (e.g., 5-7 days)"
   },
-  "medicines": [
+  "products": [
     {
       "name": "Medicine name",
       "dosage": "How to take",
@@ -102,7 +102,7 @@ Return ONLY valid JSON in this exact format (no markdown, no backticks):
   ]
 }
 
-Important: If specific medicines or details are not in the prescription, suggest common OTC alternatives. Always be helpful and practical.`;
+Important: If specific products or details are not in the prescription, suggest common OTC alternatives. Always be helpful and practical.`;
 
   const completion = await groq.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
@@ -141,7 +141,7 @@ function getFallbackAnalysis(text: string) {
       severity: "mild",
       duration: "5-7 days"
     },
-    medicines: [
+    products: [
       {
         name: "Consult your pharmacist",
         dosage: "As prescribed",
@@ -163,7 +163,7 @@ function getFallbackAnalysis(text: string) {
       recommendations: "Eat light, easily digestible foods. Avoid heavy, oily, or spicy meals until recovery."
     },
     lifestyleAdvice: [
-      "Take prescribed medicines on time",
+      "Take prescribed products on time",
       "Avoid going out in extreme weather",
       "Wash hands frequently",
       "Use a mask if going out",

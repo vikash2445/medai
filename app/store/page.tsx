@@ -17,7 +17,7 @@ const CATEGORIES = [
 
 
 const TRUST_ITEMS = [
-  { icon: '🛡️', title: '100% Genuine',    sub: 'Medicines' },
+  { icon: '🛡️', title: '100% Genuine',    sub: 'products' },
   { icon: '🚚', title: 'Fast Delivery',    sub: 'Across India' },
   { icon: '🔄', title: 'Easy Returns',     sub: 'No questions asked' },
   { icon: '🔒', title: 'Secure Payment',   sub: '100% Safe & Secure' },
@@ -49,48 +49,59 @@ export default function StorePage() {
   const addedIds = new Set(cart.map(item => item.id));
 
 
-  // Fetch real medicines from Supabase via your existing API
-  useEffect(() => {
-    const fetchMedicines = async () => {
-      try {
-        const res = await fetch('/api/medicines');
-        const data = await res.json();
-        if (data.medicines && Array.isArray(data.medicines)) {
-          // Map database fields to the UI expected structure
-          const mapped = data.medicines.map((med: any) => {
-            const price = med.price;
-            const mrp = Math.round(price * 1.2);      // 20% higher as MRP
+  // Fetch real products from Supabase via your existing API
+  // Fetch products + products from Supabase APIs
+useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+
+      // Sirf products API
+      const res = await fetch('/api/products');
+
+      const data = await res.json();
+
+      const products = Array.isArray(data.products)
+        ? data.products.map((item: any) => {
+            const price = item.price || 0;
+            const mrp = item.mrp || Math.round(price * 1.25);
             const discount = Math.round(((mrp - price) / mrp) * 100);
-            // Assign a background colour based on category (fallback to light gray)
+
             let bg = '#f3f4f6';
-            if (med.category === 'Skincare') bg = '#fde8d8';
-            else if (med.category === 'Supplements') bg = '#e8f4fd';
-            else if (med.category === 'Immunity') bg = '#fef9e7';
-            else if (med.category === 'Baby Care') bg = '#e8f0fe';
-            else if (med.category === 'Personal Care') bg = '#e8f5e9';
-            else if (med.category === 'Fitness') bg = '#f3e8ff';
+
+            if (item.category === 'Daily Essentials') bg = '#fff4e6';
+            else if (item.category === 'Personal Care') bg = '#e8f5e9';
+            else if (item.category === 'Baby Care') bg = '#e8f0fe';
+            else if (item.category === 'Women Care') bg = '#fde8f2';
+            else if (item.category === 'Protein') bg = '#f3e8ff';
+
             return {
-              id:         med.id,
-              name:       med.name,
-              category:   med.category,
-              price:      price,
-              mrp:        mrp,
-              discount:   discount,
-              rating:     (Math.random() * 1.5 + 3.5).toFixed(1), // demo rating
-              emoji:      med.isAntibiotic ? '💊⚠️' : '💊',
-              bg:         bg,
+              id: item.id,
+              name: item.name,
+              category: item.category || 'Product',
+              price,
+              mrp,
+              discount,
+              rating: (Math.random() * 1.5 + 3.8).toFixed(1),
+              emoji: item.emoji || '🛒',
+              bg,
+              image: item.image || '',
+              type: 'product',
             };
-          });
-          setProducts(mapped);
-        }
-      } catch (err) {
-        console.error('Error fetching medicines:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMedicines();
-  }, []);
+          })
+        : [];
+
+      setProducts(products);
+
+    } catch (err) {
+      console.error('Error fetching products:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchProducts();
+}, []);
 
   const filteredProducts = products.filter(p =>
     search === '' ||
@@ -623,7 +634,7 @@ export default function StorePage() {
                 id="store-search"
                 name="search"
                 type="text"
-                placeholder="Search medicines, products..."
+                placeholder="Search products, products..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -689,9 +700,9 @@ export default function StorePage() {
             <span className="sp-view-all">View All</span>
           </div>
           {loading ? (
-            <div className="text-center py-8">Loading medicines...</div>
+            <div className="text-center py-8">Loading products...</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-8">No medicines found.</div>
+            <div className="text-center py-8">No products found.</div>
           ) : (
             <div className="sp-prod-grid">
               {filteredProducts.map(p => (

@@ -37,7 +37,7 @@ export default function TermsPage() {
             <ul className="list-disc pl-6 mt-2 space-y-1 text-ink-soft">
               <li>AI-powered over-the-counter (OTC) medicine recommendations based on symptoms</li>
               <li>Prescription image scanning and medicine identification</li>
-              <li>Online ordering and delivery of medicines</li>
+              <li>Online ordering and delivery of products</li>
             </ul>
             <p className="text-ink-soft mt-3 font-semibold">We do NOT provide:</p>
             <ul className="list-disc pl-6 mt-1 text-ink-soft">
@@ -65,7 +65,7 @@ export default function TermsPage() {
               <li>Prices are subject to change without notice</li>
               <li>Payments are processed securely via Razorpay</li>
               <li>We reserve the right to refuse or cancel any order</li>
-              <li>Prescription medicines require a valid doctor's prescription</li>
+              <li>Prescription products require a valid doctor's prescription</li>
             </ul>
           </section>
 

@@ -4,50 +4,50 @@ import { supabase } from '@/app/lib/supabase';
 
 export async function GET() {
   try {
-    const { data: medicines, error } = await supabase
-      .from('medicines')
+    const { data: products, error } = await supabase
+      .from('products')
       .select('*')
       .order('id', { ascending: true });
 
     if (error) {
-      console.error('Error fetching medicines:', error);
+      console.error('Error fetching products:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch medicines', medicines: [] },
+        { error: 'Failed to fetch products', products: [] },
         { status: 500 }
       );
     }
 
-    // Format medicines for frontend
-    const formattedMedicines = (medicines || []).map(med => ({
+    // Format products for frontend
+    const formattedproducts = (products || []).map(med => ({
       id: med.id,
       name: med.name,
       generic: med.generic,
       type: med.type,
       category: med.category,
       price: med.price,
-      isAntibiotic: med.isAntibiotic,
+      is_antibiotic: med.is_antibiotic,
       tags: med.tags || [],
       image: med.image || `https://placehold.co/400x300/0fa381/white?text=${encodeURIComponent(med.name)}`,
-      description: `${med.generic} - ${med.category} medicine. ${med.isAntibiotic ? 'Antibiotic - Complete full course.' : 'OTC medicine for relief.'}`,
+      description: `${med.generic} - ${med.category} medicine. ${med.is_antibiotic ? 'Antibiotic - Complete full course.' : 'OTC medicine for relief.'}`,
       stock: med.stock || 100,
       quantitySelector: {
-        allowLoose: !med.isAntibiotic,
+        allowLoose: !med.is_antibiotic,
         tabletsPerStrip: 10,
         minQuantity: 1,
         maxQuantity: 30,
         defaultQuantity: 1,
         step: 1,
-        recommendedType: med.isAntibiotic ? 'strip' : 'loose',
-        note: med.isAntibiotic ? '⚠️ Complete full course is required' : 'You can buy loose tablets or full strip'
+        recommendedType: med.is_antibiotic ? 'strip' : 'loose',
+        note: med.is_antibiotic ? '⚠️ Complete full course is required' : 'You can buy loose tablets or full strip'
       },
       pricePerTablet: Math.round(med.price / 10)
     }));
 
-    return NextResponse.json({ medicines: formattedMedicines });
+    return NextResponse.json({ products: formattedproducts });
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', medicines: [] },
+      { error: 'Internal server error', products: [] },
       { status: 500 }
     );
   }
