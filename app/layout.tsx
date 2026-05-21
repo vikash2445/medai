@@ -5,8 +5,7 @@ import { Analytics } from "@vercel/analytics/react";
 import Script from "next/script";
 import "./globals.css";
 import { CartProvider } from './context/CartContext';
-import CartDrawer from './components/cartdrawer';
-import UserSync from './components/UserSync';  // 👈 Added: User sync component
+import CartDrawer from '../components/cartdrawer';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,7 +47,7 @@ export default function RootLayout({
             <link rel="manifest" href="/manifest.json" />
             <link rel="apple-touch-icon" href="/icons/icon-192.png" />
           </head>
-          <body>
+          <body className={`${geistSans.variable} ${geistMono.variable}`}>
             {/* OneSignal */}
             <Script
               src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
@@ -66,12 +65,9 @@ export default function RootLayout({
               `}
             </Script>
 
-            {/* ✅ User sync component – syncs Clerk user data to Supabase */}
-           {/* <UserSync /> */}
-
             {children}
 
-            {/* ✅ Single global cart drawer – replaces all local cart panels */}
+            {/* Global cart drawer */}
             <CartDrawer />
 
             <Analytics />

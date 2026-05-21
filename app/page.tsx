@@ -1,44 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { SignInButton, UserButton, useAuth } from '@clerk/nextjs';
+import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
-import PrescriptionScanner from './components/PrescriptionScanner';
-import MedicineCard from './components/MedicineCard';
-import EnhancedHealthTip from './components/EnhancedHealthTip';
-import Navbar from './components/Navbar';
-import { useCart } from './context/CartContext';   // adjust path as needed
+import PrescriptionScanner from '../components/PrescriptionScanner';
+import EnhancedHealthTip from '../components/EnhancedHealthTip';
+import Navbar from '../components/Navbar';
+import { useCart } from './context/CartContext';
+import "./css/homepage.css";
+import BannerCarousel from '../components/BannerCarousel';
 
-// ========== Web Speech API Type Declarations ==========
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-  interpretation: any;
-}
-interface SpeechRecognitionResultList {
-  length: number;
-  item(index: number): SpeechRecognitionResult;
-  [index: number]: SpeechRecognitionResult;
-}
-interface SpeechRecognitionResult {
-  isFinal: boolean;
-  length: number;
-  item(index: number): SpeechRecognitionAlternative;
-  [index: number]: SpeechRecognitionAlternative;
-}
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-    Cashfree: any;
-  }
-}
-
-// ========== Application Types ==========
+// ========== Types ==========
 interface Medicine {
   id: number;
   name: string;
@@ -49,537 +21,285 @@ interface Medicine {
   tags: string[];
   recommended?: boolean;
   drugName?: string;
-  imageQuery?: string;
   image?: string;
-  dosage?: string;
   category?: string;
   is_antibiotic?: boolean;
-  usage?: {
-    frequency: string;
-    duration: string;
-    totalTablets: number;
-  };
-  quantitySelector?: {
-    allowLoose: boolean;
-    tabletsPerStrip: number;
-    minQuantity: number;
-    maxQuantity: number;
-    defaultQuantity: number;
-    step: number;
-    recommendedType: string;
-    note: string;
-  };
   pricePerTablet?: number;
-  estimatedTotalPrice?: number;
 }
-interface CartItem extends Medicine { qty: number; }
 interface AnalysisResult { summary: string; products: Medicine[]; notes?: string[]; }
-interface Address { name: string; line1: string; city: string; zip: string; phone: string; email?: string; }
 
-// ========== CSS (your full CSS – unchanged) ==========
-const css = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap');
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+// ========== Static store data ==========
 
-  :root {
-    --mint: #0fa381;
-    --mint-light: #e6f7f3;
-    --mint-dark: #0a7860;
-    --cream: #faf9f6;
-    --stone: #f0ede7;
-    --ink: #1a1a2e;
-    --ink-soft: #4a4a6a;
-    --red: #e05c5c;
-    --gold: #f0b429;
-    --card-shadow: 0 4px 24px rgba(15,163,129,.12);
-    --radius: 16px;
-  }
+const TRUST_ITEMS = [
+  { icon: '🛡️', title: '100% Genuine',   sub: 'Certified products' },
+  { icon: '🚚', title: 'Fast Delivery',   sub: 'Across India' },
+  { icon: '🔄', title: 'Easy Returns',    sub: 'No questions asked' },
+  { icon: '🔒', title: 'Secure Payment',  sub: '100% Safe & Secure' },
+];
 
-  body { font-family:'Outfit',sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; }
+function Stars({ rating }: { rating: number }) {
+  const full = Math.floor(rating);
+  return (
+    <span style={{ color: '#f59e0b', fontSize: '0.72rem' }}>
+      {'★'.repeat(full)}{'☆'.repeat(5 - full)}
+    </span>
+  );
+}
 
-  .nav { position:sticky;top:0;z-index:100;background:rgba(250,249,246,.9);backdrop-filter:blur(12px);
-         border-bottom:1px solid rgba(15,163,129,.15);display:flex;align-items:center;
-         justify-content:space-between;padding:0 40px;height:64px; }
-  .nav-logo { font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--mint);
-              display:flex;align-items:center;gap:8px;cursor:pointer; }
-  .nav-logo span { color:var(--ink); }
-  .nav-actions { display:flex;align-items:center;gap:16px; }
-  .cart-btn { background:var(--mint);color:#fff;border:none;border-radius:40px;
-              padding:8px 20px;font-family:'Outfit',sans-serif;font-weight:600;
-              cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .2s; }
-  .cart-btn:hover { background:var(--mint-dark); }
-  .cart-count { background:#fff;color:var(--mint);border-radius:50%;
-                width:20px;height:20px;font-size:.7rem;font-weight:700;
-                display:flex;align-items:center;justify-content:center; }
-
-  .hero { padding:80px 40px 60px;text-align:center;position:relative;overflow:hidden; }
-  .hero::before { content:'';position:absolute;inset:0;
-    background:radial-gradient(ellipse 70% 50% at 50% 0%, rgba(15,163,129,.12) 0%, transparent 70%);
-    pointer-events:none; }
-  .hero-badge { display:inline-flex;align-items:center;gap:6px;background:var(--mint-light);
-                color:var(--mint-dark);border-radius:40px;padding:6px 16px;
-                font-size:.8rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:24px; }
-  .hero h1 { font-family:'DM Serif Display',serif;font-size:clamp(2.2rem,5vw,3.8rem);
-             line-height:1.12;max-width:700px;margin:0 auto 16px;color:var(--ink); }
-  .hero h1 em { color:var(--mint);font-style:normal; }
-  .hero p { font-size:1.1rem;color:var(--ink-soft);max-width:500px;margin:0 auto 48px;line-height:1.6; }
-
-  .search-box { background:#fff;border-radius:24px;box-shadow:var(--card-shadow);
-                max-width:720px;margin:0 auto;padding:24px;border:1.5px solid rgba(15,163,129,.2); }
-  .search-input-wrap { display:flex;align-items:center;gap:12px;border:1.5px solid #e0ddd8;
-                       border-radius:14px;padding:12px 16px;background:var(--cream);transition:border-color .2s; }
-  .search-input-wrap:focus-within { border-color:var(--mint); }
-  .search-input { border:none;background:transparent;font-family:'Outfit',sans-serif;
-                  font-size:1rem;color:var(--ink);flex:1;outline:none; }
-  .search-input::placeholder { color:#a0a0b8; }
-  .search-actions { display:flex;align-items:center;gap:10px;margin-top:14px; }
-  .voice-btn { display:flex;align-items:center;gap:8px;background:var(--mint-light);
-               color:var(--mint-dark);border:none;border-radius:10px;padding:10px 18px;
-               font-family:'Outfit',sans-serif;font-weight:600;cursor:pointer;transition:all .2s;flex:1;
-               justify-content:center; }
-  .voice-btn:hover { background:var(--mint);color:#fff; }
-  .voice-btn.recording { background:var(--red);color:#fff;animation:pulse 1s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
-  .analyze-btn { background:var(--mint);color:#fff;border:none;border-radius:10px;
-                 padding:10px 28px;font-family:'Outfit',sans-serif;font-weight:700;
-                 cursor:pointer;transition:background .2s;white-space:nowrap; }
-  .analyze-btn:hover:not(:disabled) { background:var(--mint-dark); }
-  .analyze-btn:disabled { opacity:.5;cursor:not-allowed; }
-  .voice-transcript { margin-top:12px;padding:10px 14px;background:var(--mint-light);
-                      border-radius:10px;font-size:.9rem;color:var(--mint-dark);display:flex;gap:8px;align-items:flex-start; }
-
-  .error-box { background:#fff0f0;border:1.5px solid rgba(224,92,92,.3);border-radius:16px;
-               padding:24px;margin-bottom:32px; }
-  .error-box h3 { color:var(--red);font-size:1rem;margin-bottom:12px;display:flex;align-items:center;gap:8px; }
-  .error-detail { font-family:monospace;background:#fff;border:1px solid #f0c0c0;border-radius:8px;
-                  padding:10px 14px;font-size:.82rem;color:#c0392b;word-break:break-all;margin:10px 0; }
-
-  .loading-state { padding:48px;text-align:center; }
-  .spinner { width:48px;height:48px;border:3px solid var(--mint-light);
-             border-top-color:var(--mint);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 20px; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-
-  .results-section { max-width:1100px;margin:0 auto;padding:0 40px 80px; }
-  .results-header { margin-bottom:32px; }
-  .results-header h2 { font-family:'DM Serif Display',serif;font-size:1.8rem;margin-bottom:6px; }
-  .disclaimer { display:flex;gap:10px;align-items:flex-start;background:#fff8e7;
-                border:1.5px solid #f0b42944;border-radius:12px;padding:14px 18px;
-                margin-bottom:28px;font-size:.85rem;color:#7a5a00; }
-
-  .meds-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:24px; }
-
-  .symptom-card { background:var(--mint-light);border-radius:var(--radius);padding:20px 24px;
-                  margin-bottom:28px;border:1.5px solid rgba(15,163,129,.2); }
-  .symptom-card h3 { font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
-                     color:var(--mint-dark);margin-bottom:8px; }
-
-  /* Medicine Card Image Styles */
-  .med-img-wrap {
-    position: relative;
-    width: 100%;
-    height: 180px;
-    background: var(--mint-light);
-    border-radius: var(--radius) var(--radius) 0 0;
-    overflow: hidden;
-  }
-  .med-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s ease;
-  }
-  .med-card:hover .med-img {
-    transform: scale(1.05);
-  }
-  .med-card {
-    background: white;
-    border-radius: var(--radius);
-    overflow: hidden;
-    transition: all 0.3s ease;
-    border: 1px solid var(--stone);
-  }
-  .med-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--card-shadow);
-    border-color: var(--mint);
-  }
-  .med-card.recommended {
-    border: 2px solid var(--mint);
-  }
-  .rec-badge {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: var(--mint);
-    color: white;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    z-index: 10;
-  }
-  .med-body {
-    padding: 16px;
-  }
-  .med-name {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--ink);
-    margin-bottom: 4px;
-  }
-  .med-type {
-    font-size: 0.75rem;
-    color: var(--mint-dark);
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .med-desc {
-    font-size: 0.85rem;
-    color: var(--ink-soft);
-    margin-bottom: 12px;
-    line-height: 1.4;
-  }
-  .med-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-  .tag {
-    background: var(--stone);
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    color: var(--ink-soft);
-  }
-  .med-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 12px;
-    border-top: 1px solid var(--stone);
-  }
-  .med-price {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: var(--mint-dark);
-  }
-  .med-price span {
-    font-size: 0.7rem;
-    font-weight: normal;
-    color: var(--ink-soft);
-  }
-  .add-cart-btn {
-    background: var(--mint);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .add-cart-btn:hover {
-    background: var(--mint-dark);
-  }
-  .add-cart-btn.added {
-    background: var(--mint-dark);
-  }
-
-  .cart-overlay { position:fixed;inset:0;background:rgba(26,26,46,.4);z-index:200;animation:fadeIn .2s; }
-  @keyframes fadeIn { from{opacity:0}to{opacity:1} }
-  .cart-panel { position:fixed;right:0;top:0;bottom:0;width:440px;background:#fff;
-                z-index:201;display:flex;flex-direction:column;animation:slideIn .3s;
-                box-shadow:-8px 0 40px rgba(0,0,0,.12); }
-  @keyframes slideIn { from{transform:translateX(100%)}to{transform:translateX(0)} }
-  .cart-header { padding:24px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between; }
-  .cart-header h2 { font-family:'DM Serif Display',serif;font-size:1.4rem; }
-  .close-btn { background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--ink-soft);
-               width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px; }
-  .close-btn:hover { background:var(--stone); }
-  .cart-items { flex:1;overflow-y:auto;padding:16px 24px; }
-  .cart-item { display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #f0ede7; }
-  .cart-item-icon { width:48px;height:48px;background:var(--mint-light);border-radius:10px;
-                    display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0; }
-  .cart-item-info { flex:1; }
-  .cart-item-name { font-weight:600;font-size:.92rem; }
-  .cart-item-price { color:var(--mint-dark);font-weight:700;font-size:.88rem; }
-  .cart-item-qty { display:flex;align-items:center;gap:8px; }
-  .qty-btn { background:var(--stone);border:none;width:26px;height:26px;border-radius:6px;
-             cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center; }
-  .qty-btn:hover { background:var(--mint-light); }
-  .cart-empty { padding:60px 0;text-align:center;color:var(--ink-soft); }
-  .cart-footer { padding:20px 24px;border-top:1px solid #eee; }
-  .cart-total { display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;margin-bottom:16px; }
-  .checkout-btn { width:100%;background:var(--mint);color:#fff;border:none;border-radius:12px;
-                  padding:16px;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;cursor:pointer; }
-  .checkout-btn:hover { background:var(--mint-dark); }
-
-  .modal-overlay { position:fixed;inset:0;background:rgba(26,26,46,.5);z-index:300;
-                   display:flex;align-items:center;justify-content:center;animation:fadeIn .2s;padding:20px; }
-  .modal { background:#fff;border-radius:24px;width:100%;max-width:560px;max-height:90vh;
-           overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2); }
-  .modal-header { padding:28px 28px 0;display:flex;align-items:center;justify-content:space-between; }
-  .modal-header h2 { font-family:'DM Serif Display',serif;font-size:1.5rem; }
-  .modal-body { padding:24px 28px 28px; }
-  .step-indicator { display:flex;gap:8px;margin-bottom:28px; }
-  .step-dot { height:4px;flex:1;border-radius:4px;background:var(--stone);transition:background .3s; }
-  .step-dot.active { background:var(--mint); }
-  .field-group { margin-bottom:18px; }
-  .field-group label { display:block;font-size:.8rem;font-weight:700;text-transform:uppercase;
-                       letter-spacing:.07em;color:var(--ink-soft);margin-bottom:6px; }
-  .field-input { width:100%;border:1.5px solid #e0ddd8;border-radius:10px;padding:12px 14px;
-                 font-family:'Outfit',sans-serif;font-size:.95rem;color:var(--ink);
-                 background:var(--cream);outline:none;transition:border-color .2s; }
-  .field-input:focus { border-color:var(--mint); }
-  .field-row { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
-  .modal-actions { display:flex;gap:12px;margin-top:24px; }
-  .btn-secondary { flex:1;background:var(--stone);border:none;border-radius:12px;padding:14px;
-                   font-family:'Outfit',sans-serif;font-weight:600;cursor:pointer; }
-  .btn-secondary:hover { background:#e0ddd8; }
-  .btn-primary { flex:2;background:var(--mint);color:#fff;border:none;border-radius:12px;padding:14px;
-                 font-family:'Outfit',sans-serif;font-weight:700;cursor:pointer;transition:background .2s; }
-  .btn-primary:hover:not(:disabled) { background:var(--mint-dark); }
-  .btn-primary:disabled { opacity:.55;cursor:not-allowed; }
-
-  .success-view { text-align:center;padding:48px 28px; }
-  .success-icon { width:80px;height:80px;background:var(--mint-light);border-radius:50%;
-                  display:flex;align-items:center;justify-content:center;font-size:2.5rem;margin:0 auto 20px; }
-  .track-id { background:var(--mint-light);color:var(--mint-dark);border-radius:10px;
-              padding:10px 20px;font-weight:700;display:inline-block;margin-bottom:28px; }
-
-  .how-section { background:#fff;padding:80px 40px; }
-  .how-section h2 { font-family:'DM Serif Display',serif;font-size:2rem;text-align:center;margin-bottom:48px; }
-  .steps-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:32px;max-width:900px;margin:0 auto; }
-  .step-card { text-align:center; }
-  .step-num { width:52px;height:52px;background:var(--mint-light);border-radius:14px;
-              display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin:0 auto 16px; }
-
-  .footer { padding:32px 40px;border-top:1px solid #e8e5df;display:flex;align-items:center;
-            justify-content:space-between;color:var(--ink-soft);font-size:.85rem; }
-
-  /* Health Tips Section Styles */
-  .bg-blue-50 { background: #eff6ff; }
-  .bg-green-50 { background: #f0fdf4; }
-  .bg-orange-50 { background: #fff7ed; }
-  .bg-purple-50 { background: #faf5ff; }
-  .text-blue-800 { color: #1e40af; }
-  .text-blue-900 { color: #1e3a8a; }
-  .text-blue-700 { color: #1d4ed8; }
-  .text-green-800 { color: #166534; }
-  .text-green-700 { color: #15803d; }
-  .text-orange-800 { color: #9a3412; }
-  .text-purple-800 { color: #5b21b6; }
-  .text-purple-600 { color: #7c3aed; }
-  .bg-green-100 { background: #dcfce7; }
-  .bg-red-100 { background: #fee2e2; }
-
-  @media(max-width:600px) {
-    .nav { padding:0 20px; }
-    .hero { padding:48px 20px 40px; }
-    .search-box { padding:16px; }
-    .search-actions { flex-direction:column; }
-    .results-section { padding:0 20px 60px; }
-    .cart-panel { width:100%; }
-    .how-section { padding:60px 20px; }
-    .footer { flex-direction:column;gap:8px;text-align:center; }
-    .meds-grid { grid-template-columns:1fr; }
-  }
-`;
-
-// ========== API Call ==========
+// ========== API ==========
 async function analyzeSymptoms(query: string): Promise<{ result?: AnalysisResult; error?: string }> {
   try {
-    console.log("🔍 Searching database for:", query);
-    
-    const dbResponse = await fetch("/api/search-medicine", {
+    const dbRes = await fetch("/api/search-medicine", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
+    const dbData = await dbRes.json();
 
-    const dbData = await dbResponse.json();
-
-    if (dbResponse.ok && dbData.products && dbData.products.length > 0) {
-      console.log("✅ Found products in database:", dbData.products.length);
-      
-      const result: AnalysisResult = {
-        summary: `Based on your search "${query}", here are the products we found. ${dbData.usedFallback ? 'We showed general recommendations since no exact match was found.' : ''}`,
-        products: dbData.products.map((med: any, idx: number) => ({
-          ...med,
-          id: med.id,
-          recommended: idx === 0,
-        })),
-        notes: [
-          "⚠️ Always read the label before use",
-          "💊 Complete the full course as prescribed",
-          "🚫 Avoid alcohol while on medication",
-          "📞 Consult doctor if symptoms persist for more than 3 days"
-        ]
+    if (dbRes.ok && dbData.products?.length > 0) {
+      return {
+        result: {
+          summary: `Based on "${query}", here are the products we found.${dbData.usedFallback ? ' Showing general recommendations.' : ''}`,
+          products: dbData.products.map((m: any, i: number) => ({ ...m, recommended: i === 0 })),
+          notes: [
+            "⚠️ Always read the label before use",
+            "💊 Complete the full course as prescribed",
+            "🚫 Avoid alcohol while on medication",
+            "📞 Consult doctor if symptoms persist for more than 3 days",
+          ],
+        },
       };
-      
-      return { result };
     }
 
-    console.log("🔄 No database results, falling back to Groq AI");
-    
-    const response = await fetch("/api/analyze", {
+    const res = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return { error: data.error || `Server error ${response.status}` };
-    }
-
-    if (!data.products || !Array.isArray(data.products)) {
-      return { error: "AI returned an unexpected format" };
-    }
-
+    const data = await res.json();
+    if (!res.ok) return { error: data.error || `Server error ${res.status}` };
+    if (!data.products || !Array.isArray(data.products)) return { error: "Unexpected response format" };
     return { result: data };
   } catch (err) {
-    console.error("Analysis error:", err);
     return { error: `Network error: ${(err as Error).message}` };
   }
 }
 
 // ========== Main Component ==========
 export default function MedAI() {
-  const [query, setQuery] = useState<string>("");
-  const [recording, setRecording] = useState<boolean>(false);
-  const [transcript, setTranscript] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [results, setResults] = useState<AnalysisResult | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [query, setQuery]           = useState("");
+  const [recording, setRecording]   = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [results, setResults]       = useState<AnalysisResult | null>(null);
+  const [apiError, setApiError]     = useState<string | null>(null);
   const [healthData, setHealthData] = useState<any>(null);
 
-  // ✅ Global cart
+  // Store state
+  const [storeProducts, setStoreProducts]   = useState<any[]>([]);
+  const [storeLoading, setStoreLoading]     = useState(true);
+
   const { cart, addToCart, clearCart, cartCount } = useCart();
   const addedIds = new Set(cart.map(item => item.id));
-
   const recognitionRef = useRef<any>(null);
-  const { isSignedIn } = useAuth();
+  const resultsRef = useRef<HTMLDivElement>(null);
 
-  // ❌ Removed: Cashfree SDK loading (moved to /checkout)
-  // ❌ Removed: cartOpen state and its useEffect (global CartDrawer handles it)
+  // Has the user triggered a search?
+  const hasResults = !!(results || apiError || loading);
 
-  // Speech Recognition (unchanged)
+  // ── Fetch store products once ──────────────────────────────
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.onresult = (event: any) => {
-      const transcriptText = Array.from(event.results).map((result: any) => result[0].transcript).join("");
-      setTranscript(transcriptText);
-      setQuery(transcriptText);
+    (async () => {
+      try {
+        const res  = await fetch('/api/products');
+        const data = await res.json();
+        const products = Array.isArray(data.products)
+          ? data.products.map((item: any) => {
+              const price    = item.price || 0;
+              const mrp      = item.mrp  || Math.round(price * 1.25);
+              const discount = Math.round(((mrp - price) / mrp) * 100);
+              return { ...item, price, mrp, discount, rating: (Math.random() * 1.5 + 3.8).toFixed(1) };
+            })
+          : [];
+        setStoreProducts(products);
+      } catch { /* silent */ }
+      finally { setStoreLoading(false); }
+    })();
+  }, []);
+
+  // ── Speech Recognition ─────────────────────────────────────
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.onresult = (e: any) => {
+      const t = Array.from(e.results).map((r: any) => r[0].transcript).join("");
+      setTranscript(t); setQuery(t);
     };
-    recognition.onend = () => setRecording(false);
-    recognitionRef.current = recognition;
+    rec.onend = () => setRecording(false);
+    recognitionRef.current = rec;
   }, []);
 
   const toggleVoice = useCallback(() => {
-    if (!recognitionRef.current) {
-      alert("Voice recognition not supported. Please type your symptoms.");
-      return;
-    }
-    if (recording) {
-      recognitionRef.current.stop();
-      setRecording(false);
-    } else {
-      setTranscript("");
-      recognitionRef.current.start();
-      setRecording(true);
-    }
+    if (!recognitionRef.current) { alert("Voice not supported. Please type."); return; }
+    if (recording) { recognitionRef.current.stop(); setRecording(false); }
+    else { setTranscript(""); recognitionRef.current.start(); setRecording(true); }
   }, [recording]);
 
+  // ── Analyze ────────────────────────────────────────────────
   const handleAnalyze = async () => {
     if (!query.trim()) return;
-    setLoading(true);
-    setResults(null);
-    setApiError(null);
-    setHealthData(null);
-
+    setLoading(true); setResults(null); setApiError(null); setHealthData(null);
     try {
       const { result, error } = await analyzeSymptoms(query);
-      if (error) {
-        setApiError(error);
-      } else if (result) {
-        setResults(result);
-      }
-      
-      try {
-        const healthResponse = await fetch("/api/health-advice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-        });
-        const healthDataResult = await healthResponse.json();
-        setHealthData(healthDataResult);
-      } catch (healthError) {
-        console.error("Health tips error:", healthError);
-      }
-    } catch (err) {
-      console.error("Analysis error:", err);
-      setApiError("Failed to analyze symptoms. Please try again.");
-    } finally {
+      if (error) setApiError(error);
+      else if (result) setResults(result);
+      // Health advice (non-blocking)
+      fetch("/api/health-advice", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ query }) })
+        .then(r => r.json()).then(setHealthData).catch(() => {});
+    } catch { setApiError("Failed to analyze. Please try again."); }
+    finally {
       setLoading(false);
-      setTimeout(() => document.getElementById("results-anchor")?.scrollIntoView({ behavior: "smooth" }), 100);
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior:"smooth", block:"start" }), 100);
     }
   };
 
-  const handlePrescriptionproducts = async (products: any[]) => {
-    products.forEach(medicine => addToCart({ ...medicine, quantity: 1 }));
-    alert(`Added ${products.length} medicine(s) from prescription to cart!`);
+  const handlePrescriptionProducts = (products: any[]) => {
+    products.forEach(m => addToCart({ ...m, quantity: 1 }));
+    alert(`Added ${products.length} medicine(s) to cart!`);
   };
 
-  const resetAll = () => {
-    setResults(null);
-    setApiError(null);
-    setQuery("");
-    setTranscript("");
-    clearCart();
-  };
+  const resetAll = () => { setResults(null); setApiError(null); setQuery(""); setTranscript(""); clearCart(); };
 
-  const getImageUrl = (medicine: Medicine) => medicine.image || `https://placehold.co/400x300/0fa381/white?text=${encodeURIComponent(medicine.name)}`;
+  const getImageUrl = (m: Medicine) =>
+    m.image || `https://placehold.co/400x300/0fa381/white?text=${encodeURIComponent(m.name)}`;
 
-  return ( 
+  return (
     <>
-      <style>{css}</style>
+      <style>{`
+        /* ───────── STORE EMBED STYLES ───────── */
+        .home-store { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+        .home-store * { box-sizing: border-box; }
+
+        /* Trust bar */
+        .hs-trust { display: grid; grid-template-columns: repeat(4,1fr); background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; margin-bottom:28px; }
+        .hs-trust-item { display:flex; align-items:center; gap:12px; padding:14px 18px; border-right:1px solid #f0f0f0; }
+        .hs-trust-item:last-child { border-right:none; }
+        .hs-trust-icon { font-size:1.5rem; flex-shrink:0; }
+        .hs-trust-title { font-size:0.82rem; font-weight:700; color:#1a1a1a; }
+        .hs-trust-sub { font-size:0.68rem; color:#999; }
+
+        /* Section header */
+        .hs-sec-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+        .hs-sec-title { font-size:1.1rem; font-weight:800; color:#1a1a1a; }
+        .hs-view-all { color:#1a6b3c; font-size:0.82rem; font-weight:700; text-decoration:none; cursor:pointer; }
+        .hs-view-all:hover { text-decoration:underline; }
+
+        /* Category grid */
+        .hs-cat-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:28px; }
+        .hs-cat-card { background:#fff; border-radius:12px; padding:16px 8px; text-align:center; border:1.5px solid transparent; cursor:pointer; transition:all .2s; box-shadow:0 2px 6px rgba(0,0,0,.04); }
+        .hs-cat-card:hover { border-color:#1a6b3c; transform:translateY(-2px); box-shadow:0 6px 18px rgba(26,107,60,.1); }
+        .hs-cat-icon { width:54px; height:54px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.6rem; margin:0 auto 8px; }
+        .hs-cat-name { font-size:0.72rem; font-weight:700; color:#333; }
+
+        /* Product grid */
+        .hs-prod-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; }
+        .hs-prod-card { background:#fff; border-radius:13px; border:1.5px solid #f0f0f0; overflow:hidden; transition:all .22s; box-shadow:0 2px 6px rgba(0,0,0,.04); }
+        .hs-prod-card:hover { border-color:#1a6b3c; transform:translateY(-3px); box-shadow:0 8px 24px rgba(26,107,60,.12); }
+        .hs-prod-img { height:120px; display:flex; align-items:center; justify-content:center; position:relative; font-size:2.8rem; }
+        .hs-disc-badge { position:absolute; top:7px; left:7px; background:#e53935; color:#fff; font-size:0.58rem; font-weight:800; padding:2px 6px; border-radius:4px; }
+        .hs-prod-body { padding:10px; }
+        .hs-prod-name { font-size:0.76rem; font-weight:700; color:#1a1a1a; line-height:1.3; margin-bottom:2px; }
+        .hs-prod-cat  { font-size:0.64rem; color:#aaa; margin-bottom:5px; }
+        .hs-prod-stars { display:flex; align-items:center; gap:3px; margin-bottom:5px; }
+        .hs-rating-num { font-size:0.66rem; color:#666; font-weight:600; }
+        .hs-prod-price { display:flex; align-items:baseline; gap:5px; margin-bottom:8px; }
+        .hs-price-now { font-size:0.92rem; font-weight:800; color:#1a1a1a; }
+        .hs-price-mrp { font-size:0.68rem; color:#ccc; text-decoration:line-through; }
+        .hs-add-btn { width:100%; background:#1a6b3c; color:#fff; border:none; border-radius:7px; padding:8px 0; font-size:0.74rem; font-weight:700; font-family:inherit; cursor:pointer; transition:background .18s; }
+        .hs-add-btn:hover { background:#145230; }
+        .hs-add-btn.added { background:#145230; opacity:.7; cursor:default; }
+
+        /* Results push-down animation */
+        .hs-store-wrap { transition: margin-top .3s ease; }
+
+        /* Health data cards (compact) */
+        .hd-section { margin-top: 20px; }
+        .hd-card { border-radius:12px; padding:16px; margin-bottom:12px; }
+
+        /* Skeleton loading */
+        .hs-skeleton { background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:8px; }
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        @media(max-width:1024px){
+          .hs-prod-grid{grid-template-columns:repeat(4,1fr)}
+          .hs-cat-grid{grid-template-columns:repeat(4,1fr)}
+        }
+        @media(max-width:768px){
+          .hs-trust{grid-template-columns:repeat(2,1fr)}
+          .hs-cat-grid{grid-template-columns:repeat(3,1fr)}
+          .hs-prod-grid{grid-template-columns:repeat(2,1fr)}
+        }
+        @media(max-width:480px){
+          .hs-cat-grid{grid-template-columns:repeat(2,1fr)}
+          .hs-prod-grid{grid-template-columns:repeat(2,1fr)}
+          .hs-trust{grid-template-columns:1fr}
+        }
+      `}</style>
 
       <Navbar cartCount={cartCount} resetAll={resetAll} />
 
-      {/* Hero Section */}
+      {/* Banner Carousel - Only show when no search results */}
+{!hasResults && <BannerCarousel />}
+
+
+      {/* ── Hero ──────────────────────────────────────────────── */}
+      {/* Hero section - only show when no search results */}
+{!hasResults && (
+  <section className="hero">
+    {/* hero content */}
+  </section>
+)}
       <section className="hero">
         <div className="hero-badge">✦ AI-Powered Pharmacy</div>
         <h1>Describe your symptoms,<br />get the <em>right medicine</em> delivered</h1>
-        <p>Tell us how you feel — type or speak — and our AI recommends the best over-the-counter treatment for you.</p>
+        <p>Tell us how you feel — type or speak — and our AI recommends the best over-the-counter treatment.</p>
       </section>
 
-      {/* Daily Health Tip */}
+      {/* ── Daily health tip ──────────────────────────────────── */}
       <div className="max-w-720 mx-auto px-4 mb-6">
         <EnhancedHealthTip />
       </div>
 
-      {/* Search Box */}
+      {/* ── Search Box ────────────────────────────────────────── */}
       <div className="search-box">
         <div className="search-input-wrap">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
           <input
             className="search-input"
-            placeholder="e.g. I have a terrible headache and mild fever since this morning..."
+            placeholder="e.g. I have a headache and mild fever since this morning..."
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAnalyze()}
           />
+          {query && (
+            <button
+              onClick={() => { setQuery(""); setResults(null); setApiError(null); setHealthData(null); }}
+              style={{ background:"none", border:"none", cursor:"pointer", color:"#999", fontSize:"1.1rem", padding:"0 6px", lineHeight:1 }}
+              aria-label="Clear search"
+            >×</button>
+          )}
         </div>
 
         <div className="search-actions">
@@ -587,12 +307,13 @@ export default function MedAI() {
             <button className={`voice-btn flex-1 ${recording ? "recording" : ""}`} onClick={toggleVoice}>
               {recording ? "🔴 Recording… tap to stop" : "🎙️ Describe with voice"}
             </button>
-            <PrescriptionScanner onproductsDetected={handlePrescriptionproducts} onSearchQuery={handleAnalyze} />
+            <PrescriptionScanner onproductsDetected={handlePrescriptionProducts} onSearchQuery={handleAnalyze} />
           </div>
           <button className="analyze-btn" onClick={handleAnalyze} disabled={!query.trim() || loading}>
             {loading ? "Analyzing…" : "Find Medicine →"}
           </button>
         </div>
+
         {transcript && (
           <div className="voice-transcript">
             <span>🎤</span>
@@ -601,361 +322,317 @@ export default function MedAI() {
         )}
       </div>
 
-      <div id="results-anchor" />
-
-      {loading && (
-        <div className="results-section">
-          <div className="loading-state">
-            <div className="spinner" />
-            <p>Analyzing your symptoms and finding the best medications…</p>
-          </div>
-        </div>
-      )}
-
-      {apiError && !loading && (
-        <div className="results-section">
-          <div className="error-box">
-            <h3>⚠️ Error</h3>
-            <div className="error-detail">{apiError}</div>
-          </div>
-        </div>
-      )}
-
-      {results && !loading && !apiError && (
-        <div className="results-section">
-          <div className="results-header">
-            <h2>Recommended for You</h2>
-            <p>Based on your described symptoms, here are the best options</p>
-          </div>
-
-          <div className="disclaimer">
-            <span>⚠️</span>
-            <span><b>Medical Disclaimer:</b> These are general OTC suggestions only. Always consult a healthcare professional for serious conditions.</span>
-          </div>
-
-          {results.summary && (
-            <div className="symptom-card">
-              <h3>AI Assessment</h3>
-              <p>{results.summary}</p>
+      {/* ── SEARCH RESULTS (shown above store when active) ────── */}
+      <div ref={resultsRef}>
+        {loading && (
+          <div className="results-section">
+            <div className="loading-state">
+              <div className="spinner" />
+              <p>Analyzing your symptoms and finding the best medications…</p>
             </div>
-          )}
-
-          <div className="meds-grid">
-  {results.products.map((med, idx) => {
-    // Safely get price (fallback to 0 if missing)
-    const price = med.price ?? med.pricePerTablet ?? 0;
-    
-    return (
-      <div key={med.id || idx} className={`med-card ${med.recommended ? "recommended" : ""}`}>
-        <div className="med-img-wrap">
-          <img 
-            src={getImageUrl(med)} 
-            alt={med.name} 
-            className="med-img"
-            onError={(e) => { 
-              (e.target as HTMLImageElement).src = `https://placehold.co/400x300/0fa381/white?text=${encodeURIComponent(med.name)}`;
-            }} 
-          />
-          {med.recommended && <div className="rec-badge">⭐ Best Match</div>}
-        </div>
-        <div className="med-body">
-          <div className="med-name">{med.name}</div>
-          <div className="med-type">{med.type || med.category || 'Medicine'}</div>
-          <div className="med-desc">{med.description || 'No description available'}</div>
-          {med.tags && med.tags.length > 0 && (
-            <div className="med-tags">
-              {med.tags.map((tag, i) => <span key={i} className="tag">{tag}</span>)}
-            </div>
-          )}
-          <div className="med-footer">
-            <div className="med-price">₹{price.toFixed(2)} <span>/ pack</span></div>
-            <button 
-              className={`add-cart-btn ${addedIds.has(med.id) ? "added" : ""}`}
-              onClick={() => {
-                // ✅ Convert Medicine to CartItem shape expected by global addToCart
-                addToCart({
-                  id: med.id,
-                  name: med.name,
-                  price: price,
-                  quantity: 1,        // required by global cart
-                  category: med.category,
-                  emoji: med.emoji,
-                  image: med.image,
-                  // Include any other fields your CartItem interface requires
-                });
-              }}
-              disabled={addedIds.has(med.id)}  // optional: disable button after adding
-            >
-              {addedIds.has(med.id) ? "✓ Added" : "Add to Cart"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  })}
-</div>
-
-          {/* Safety Notes - Fixed formatting */}
-          {results.notes && results.notes.length > 0 && (
-            <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-              <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Important Safety Notes</h4>
-              <ul className="space-y-1">
-                {results.notes.map((note, i) => (
-                  <li key={i} className="text-sm text-yellow-700">
-                    {note.startsWith('⚠️') || note.startsWith('💊') || note.startsWith('🚫') || note.startsWith('📞') 
-                      ? note 
-                      : `• ${note}`}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Health Data Section - FIXED with proper formatting */}
-          {healthData && (
-  <div className="mt-8 space-y-6">
-    {/* Disease Info */}
-    {healthData.disease && (
-      <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-2xl">📋</span>
-          <h3 className="font-bold text-lg text-blue-800">बीमारी की जानकारी</h3>
-        </div>
-        <h4 className="font-semibold text-blue-900">{healthData.disease.name}</h4>
-        <p className="text-blue-700 text-sm mt-1">{healthData.disease.description}</p>
-        {healthData.disease.severity && (
-          <div className="mt-2 inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
-            Severity: {healthData.disease.severity}
           </div>
         )}
-      </div>
-    )}
 
-    {/* Symptoms */}
-    {healthData.symptoms && (
-      <div className="bg-purple-50 rounded-xl p-5 border border-purple-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">📝</span>
-          <h3 className="font-bold text-lg text-purple-800">लक्षण</h3>
-        </div>
-        {healthData.symptoms.common && healthData.symptoms.common.length > 0 && (
-          <>
-            <p className="font-semibold text-purple-700 mb-2">सामान्य लक्षण:</p>
-            <ul className="list-disc pl-5 mb-3">
-              {healthData.symptoms.common.map((symptom: string, idx: number) => (
-                <li key={idx} className="text-gray-700 text-sm">{symptom}</li>
-              ))}
-            </ul>
-          </>
+        {apiError && !loading && (
+          <div className="results-section">
+            <div className="error-box">
+              <h3>⚠️ Error</h3>
+              <div className="error-detail">{apiError}</div>
+              <button
+                onClick={() => setApiError(null)}
+                style={{ marginTop:12, padding:"8px 18px", background:"#1a6b3c", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontWeight:600 }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
         )}
-        {healthData.symptoms.warning && healthData.symptoms.warning.length > 0 && (
-          <>
-            <p className="font-semibold text-red-700 mb-2">⚠️ खतरनाक लक्षण:</p>
-            <ul className="list-disc pl-5">
-              {healthData.symptoms.warning.map((warning: string, idx: number) => (
-                <li key={idx} className="text-red-600 text-sm">{warning}</li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
-    )}
 
-    {/* Immediate Relief */}
-    {healthData.immediateRelief && (
-      <div className="bg-green-50 rounded-xl p-5 border border-green-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">⚡</span>
-          <h3 className="font-bold text-lg text-green-800">{healthData.immediateRelief.title || "तुरंत राहत के उपाय"}</h3>
-        </div>
-        <div className="space-y-3">
-          {healthData.immediateRelief.steps?.map((step: any, idx: number) => (
-            <div key={idx} className="bg-white rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">{step.step}</span>
-                <span className="font-semibold text-gray-800">{step.action}</span>
+        {results && !loading && !apiError && (
+          <div className="results-section">
+            {/* Results header + close */}
+            <div className="results-header" style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
+              <div>
+                <h2>Recommended for You</h2>
+                <p>Based on your described symptoms, here are the best options</p>
               </div>
-              <p className="text-xs text-gray-500 ml-8">⏱️ {step.duration}</p>
-              {step.tip && <p className="text-xs text-green-600 mt-1 ml-8">💡 {step.tip}</p>}
+              <button
+                onClick={() => { setResults(null); setHealthData(null); }}
+                style={{ flexShrink:0, background:"none", border:"1px solid #ddd", borderRadius:8, padding:"6px 14px", fontSize:"0.82rem", fontWeight:600, cursor:"pointer", color:"#666", whiteSpace:"nowrap" }}
+              >
+                ✕ Clear results
+              </button>
             </div>
-          ))}
-        </div>
-      </div>
-    )}
 
-    {/* Home Remedies */}
-    {healthData.homeRemedies && healthData.homeRemedies.length > 0 && (
-      <div className="bg-yellow-50 rounded-xl p-5 border border-yellow-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">🏠</span>
-          <h3 className="font-bold text-lg text-yellow-800">घरेलू उपाय</h3>
-        </div>
-        <div className="space-y-4">
-          {healthData.homeRemedies.map((remedy: any, idx: number) => (
-            <div key={idx} className="bg-white rounded-lg p-3">
-              <h4 className="font-semibold text-yellow-800">{remedy.name}</h4>
-              <p className="text-sm text-gray-700 mt-1"><strong>सामग्री:</strong> {remedy.ingredients?.join(", ")}</p>
-              <p className="text-sm text-gray-700 mt-1"><strong>विधि:</strong> {remedy.howTo}</p>
-              <p className="text-xs text-gray-500 mt-1">⏰ {remedy.frequency} | ✨ {remedy.effectiveIn}</p>
+            <div className="disclaimer">
+              <span>⚠️</span>
+              <span><b>Medical Disclaimer:</b> These are general OTC suggestions only. Always consult a healthcare professional for serious conditions.</span>
             </div>
-          ))}
-        </div>
-      </div>
-    )}
 
-    {/* Diet Plan */}
-    {healthData.dietPlan && (
-      <div className="bg-orange-50 rounded-xl p-5 border border-orange-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">🥗</span>
-          <h3 className="font-bold text-lg text-orange-800">आहार योजना</h3>
-        </div>
-
-        {healthData.dietPlan.healingFoods && healthData.dietPlan.healingFoods.length > 0 && (
-          <div className="mb-3">
-            <p className="font-semibold text-green-700 mb-1">✅ फायदेमंद खाद्य पदार्थ:</p>
-            <div className="space-y-2">
-              {healthData.dietPlan.healingFoods.map((food: any, idx: number) => (
-                <div key={idx} className="bg-white rounded-lg p-2">
-                  <p className="font-medium text-gray-800">{food.food}</p>
-                  <p className="text-xs text-gray-600">{food.benefit}</p>
-                  <p className="text-xs text-green-600">मात्रा: {food.howMuch}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {healthData.dietPlan.avoidFoods && healthData.dietPlan.avoidFoods.length > 0 && (
-          <div className="mb-3">
-            <p className="font-semibold text-red-700 mb-1">❌ न खाएं:</p>
-            <div className="space-y-2">
-              {healthData.dietPlan.avoidFoods.map((food: any, idx: number) => (
-                <div key={idx} className="bg-white rounded-lg p-2">
-                  <p className="font-medium text-gray-800">{food.food}</p>
-                  <p className="text-xs text-red-600">{food.reason}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {healthData.dietPlan.mealPlan && (
-          <div className="mt-3">
-            <p className="font-semibold text-orange-700 mb-1">📅 दिन का आहार:</p>
-            <div className="bg-white rounded-lg p-3 space-y-1">
-              <p className="text-sm"><strong>सुबह:</strong> {healthData.dietPlan.mealPlan.morning}</p>
-              <p className="text-sm"><strong>दोपहर:</strong> {healthData.dietPlan.mealPlan.afternoon}</p>
-              <p className="text-sm"><strong>शाम:</strong> {healthData.dietPlan.mealPlan.evening}</p>
-              <p className="text-sm"><strong>रात:</strong> {healthData.dietPlan.mealPlan.night}</p>
-            </div>
-          </div>
-        )}
-      </div>
-    )}
-
-    {/* Recovery Plan */}
-    {healthData.recoveryPlan && (
-      <div className="bg-teal-50 rounded-xl p-5 border border-teal-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">📅</span>
-          <h3 className="font-bold text-lg text-teal-800">रीकवरी प्लान</h3>
-        </div>
-        <div className="space-y-2">
-          {healthData.recoveryPlan.day1 && <p className="text-sm"><strong>दिन 1:</strong> {healthData.recoveryPlan.day1}</p>}
-          {healthData.recoveryPlan.day2to3 && <p className="text-sm"><strong>दिन 2-3:</strong> {healthData.recoveryPlan.day2to3}</p>}
-          {healthData.recoveryPlan.week1 && <p className="text-sm"><strong>Week 1:</strong> {healthData.recoveryPlan.week1}</p>}
-          {healthData.recoveryPlan.prevention && <p className="text-sm text-teal-700 mt-2"><strong>🎯 बचाव:</strong> {healthData.recoveryPlan.prevention}</p>}
-        </div>
-      </div>
-    )}
-
-    {/* products Disclaimer */}
-    {healthData.products && (
-      <div className="bg-red-50 rounded-xl p-5 border border-red-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">💊</span>
-          <h3 className="font-bold text-lg text-red-800">दवाइयाँ</h3>
-        </div>
-        <p className="text-red-700 text-sm mb-3">{healthData.products.disclaimer}</p>
-        {healthData.products.otcOptions && healthData.products.otcOptions.length > 0 && (
-          <div className="space-y-2">
-            {healthData.products.otcOptions.map((med: any, idx: number) => (
-              <div key={idx} className="bg-white rounded-lg p-2">
-                <p className="font-semibold text-gray-800">{med.name}</p>
-                <p className="text-xs text-gray-600">उपयोग: {med.use}</p>
-                <p className="text-xs text-red-600">सावधानी: {med.caution}</p>
+            {results.summary && (
+              <div className="symptom-card">
+                <h3>AI Assessment</h3>
+                <p>{results.summary}</p>
               </div>
-            ))}
+            )}
+
+            {/* Medicine cards grid */}
+            <div className="meds-grid">
+              {results.products.map((med, idx) => {
+                const price = med.price ?? med.pricePerTablet ?? 0;
+                return (
+                  <div key={med.id || idx} className={`med-card ${med.recommended ? "recommended" : ""}`}>
+                    <div className="med-img-wrap">
+                      <img
+                        src={getImageUrl(med)}
+                        alt={med.name}
+                        className="med-img"
+                        onError={e => { (e.target as HTMLImageElement).src = `https://placehold.co/400x300/0fa381/white?text=${encodeURIComponent(med.name)}`; }}
+                      />
+                      {med.recommended && <div className="rec-badge">⭐ Best Match</div>}
+                    </div>
+                    <div className="med-body">
+                      <div className="med-name">{med.name}</div>
+                      <div className="med-type">{med.type || med.category || 'Medicine'}</div>
+                      <div className="med-desc">{med.description || 'No description available'}</div>
+                      {med.tags?.length > 0 && (
+                        <div className="med-tags">
+                          {med.tags.map((tag, i) => <span key={i} className="tag">{tag}</span>)}
+                        </div>
+                      )}
+                      <div className="med-footer">
+                        <div className="med-price">₹{price.toFixed(2)} <span>/ pack</span></div>
+                        <button
+                          className={`add-cart-btn ${addedIds.has(med.id) ? "added" : ""}`}
+                          disabled={addedIds.has(med.id)}
+                          onClick={() => addToCart({ id: med.id, name: med.name, price, quantity: 1, category: med.category, emoji: med.emoji, image: med.image })}
+                        >
+                          {addedIds.has(med.id) ? "✓ Added" : "Add to Cart"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Safety notes */}
+            {results.notes && results.notes.length > 0 && (
+              <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Important Safety Notes</h4>
+                <ul className="space-y-1">
+                  {results.notes.map((note, i) => (
+                    <li key={i} className="text-sm text-yellow-700">{note}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Health data */}
+            {healthData && (
+              <div className="mt-8 space-y-4">
+                {healthData.disease && (
+                  <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
+                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl">📋</span><h3 className="font-bold text-lg text-blue-800">बीमारी की जानकारी</h3></div>
+                    <h4 className="font-semibold text-blue-900">{healthData.disease.name}</h4>
+                    <p className="text-blue-700 text-sm mt-1">{healthData.disease.description}</p>
+                  </div>
+                )}
+                {healthData.immediateRelief && (
+                  <div className="bg-green-50 rounded-xl p-5 border border-green-200">
+                    <div className="flex items-center gap-3 mb-3"><span className="text-2xl">⚡</span><h3 className="font-bold text-lg text-green-800">{healthData.immediateRelief.title || "तुरंत राहत के उपाय"}</h3></div>
+                    <div className="space-y-3">
+                      {healthData.immediateRelief.steps?.map((step: any, idx: number) => (
+                        <div key={idx} className="bg-white rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">{step.step}</span>
+                            <span className="font-semibold text-gray-800">{step.action}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 ml-8">⏱️ {step.duration}</p>
+                          {step.tip && <p className="text-xs text-green-600 mt-1 ml-8">💡 {step.tip}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {healthData.homeRemedies?.length > 0 && (
+                  <div className="bg-yellow-50 rounded-xl p-5 border border-yellow-200">
+                    <div className="flex items-center gap-3 mb-3"><span className="text-2xl">🏠</span><h3 className="font-bold text-lg text-yellow-800">घरेलू उपाय</h3></div>
+                    <div className="space-y-3">
+                      {healthData.homeRemedies.map((r: any, i: number) => (
+                        <div key={i} className="bg-white rounded-lg p-3">
+                          <h4 className="font-semibold text-yellow-800">{r.name}</h4>
+                          <p className="text-sm text-gray-700 mt-1"><strong>सामग्री:</strong> {r.ingredients?.join(", ")}</p>
+                          <p className="text-sm text-gray-700 mt-1"><strong>विधि:</strong> {r.howTo}</p>
+                          <p className="text-xs text-gray-500 mt-1">⏰ {r.frequency} | ✨ {r.effectiveIn}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {healthData.dietPlan && (
+                  <div className="bg-orange-50 rounded-xl p-5 border border-orange-200">
+                    <div className="flex items-center gap-3 mb-3"><span className="text-2xl">🥗</span><h3 className="font-bold text-lg text-orange-800">आहार योजना</h3></div>
+                    {healthData.dietPlan.healingFoods?.length > 0 && (
+                      <div className="mb-3">
+                        <p className="font-semibold text-green-700 mb-1">✅ फायदेमंद खाद्य पदार्थ:</p>
+                        <div className="space-y-2">
+                          {healthData.dietPlan.healingFoods.map((f: any, i: number) => (
+                            <div key={i} className="bg-white rounded-lg p-2">
+                              <p className="font-medium text-gray-800">{f.food}</p>
+                              <p className="text-xs text-gray-600">{f.benefit}</p>
+                              <p className="text-xs text-green-600">मात्रा: {f.howMuch}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {healthData.dietPlan.mealPlan && (
+                      <div className="mt-3">
+                        <p className="font-semibold text-orange-700 mb-1">📅 दिन का आहार:</p>
+                        <div className="bg-white rounded-lg p-3 space-y-1">
+                          <p className="text-sm"><strong>सुबह:</strong> {healthData.dietPlan.mealPlan.morning}</p>
+                          <p className="text-sm"><strong>दोपहर:</strong> {healthData.dietPlan.mealPlan.afternoon}</p>
+                          <p className="text-sm"><strong>शाम:</strong> {healthData.dietPlan.mealPlan.evening}</p>
+                          <p className="text-sm"><strong>रात:</strong> {healthData.dietPlan.mealPlan.night}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {healthData.doctorVisit && (
+                  <div className="bg-indigo-50 rounded-xl p-5 border border-indigo-200">
+                    <div className="flex items-center gap-3 mb-3"><span className="text-2xl">👨‍⚕️</span><h3 className="font-bold text-lg text-indigo-800">डॉक्टर से कब मिलें</h3></div>
+                    <p className="text-indigo-700 text-sm">{healthData.doctorVisit.reason}</p>
+                    <div className="mt-2 inline-flex items-center gap-1 text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">Urgency: {healthData.doctorVisit.urgency}</div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
-    )}
 
-    {/* Doctor Visit */}
-    {healthData.doctorVisit && (
-      <div className="bg-indigo-50 rounded-xl p-5 border border-indigo-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">👨‍⚕️</span>
-          <h3 className="font-bold text-lg text-indigo-800">डॉक्टर से कब मिलें</h3>
-        </div>
-        <p className="text-indigo-700 text-sm">{healthData.doctorVisit.reason}</p>
-        <div className="mt-2 inline-flex items-center gap-1 text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
-          Urgency: {healthData.doctorVisit.urgency}
-        </div>
-      </div>
-    )}
+      {/* ══════════════════════════════════════════════════════════
+          STORE SECTION — always visible, shifts down when results show
+          ══════════════════════════════════════════════════════════ */}
+      <div className="home-store hs-store-wrap" style={{ padding: "0 14px 40px", maxWidth: 1400, margin: "0 auto" }}>
 
-    {/* Lifestyle */}
-    {healthData.lifestyle && healthData.lifestyle.length > 0 && (
-      <div className="bg-purple-50 rounded-xl p-5 border border-purple-200">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">🧘</span>
-          <h3 className="font-bold text-lg text-purple-800">जीवनशैली सुझाव</h3>
-        </div>
-        <div className="space-y-2">
-          {healthData.lifestyle.map((item: any, idx: number) => (
-            <div key={idx} className="bg-white rounded-lg p-2">
-              <p className="font-semibold text-gray-800">{item.habit}</p>
-              <p className="text-xs text-gray-600">कैसे करें: {item.how}</p>
-              <p className="text-xs text-purple-600">प्रभाव: {item.impact}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-)}
-        </div>
-      )}
-
-      {!results && !loading && !apiError && (
-        <section className="how-section">
-          <h2>How Mediora Works</h2>
-          <div className="steps-grid">
+        {/* ── "How it works" strip — only when no search ──────── */}
+        {!hasResults && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:22 }}>
             {[
-              { icon: "🗣️", title: "Describe Symptoms", desc: "Type or use voice to describe how you're feeling." },
-              { icon: "🤖", title: "AI Analysis", desc: "AI identifies the most suitable OTC medications for your condition." },
-              { icon: "🛒", title: "Add to Cart", desc: "Choose your preferred medication and add it to your cart." },
-              { icon: "💳", title: "Secure Payment", desc: "Pay with Cashfree — cards, UPI, or netbanking." },
+              { icon:"🗣️", title:"Describe Symptoms", desc:"Type or use voice to describe how you feel." },
+              { icon:"🤖", title:"AI Analysis",       desc:"AI finds the right OTC medications for you." },
+              { icon:"🛒", title:"Add to Cart",       desc:"Choose your preferred medication." },
+              { icon:"💳", title:"Secure Payment",    desc:"Pay with Cashfree — UPI, cards, netbanking." },
             ].map((step, i) => (
-              <div key={i} className="step-card">
-                <div className="step-num">{step.icon}</div>
-                <h3>{step.title}</h3>
-                <p>{step.desc}</p>
+              <div key={i} style={{ background:"#fff", borderRadius:12, padding:"18px 16px", display:"flex", gap:12, alignItems:"flex-start", border:"1px solid #eee", boxShadow:"0 2px 6px rgba(0,0,0,.04)" }}>
+                <span style={{ fontSize:"1.6rem", flexShrink:0 }}>{step.icon}</span>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:"0.85rem", marginBottom:3 }}>{step.title}</div>
+                  <div style={{ fontSize:"0.72rem", color:"#777", lineHeight:1.4 }}>{step.desc}</div>
+                </div>
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
 
+        {/* ── Trust bar ──────────────────────────────────────── */}
+        <div className="hs-trust" style={{ marginBottom:22 }}>
+          {TRUST_ITEMS.map((t, i) => (
+            <div key={i} className="hs-trust-item">
+              <div className="hs-trust-icon">{t.icon}</div>
+              <div>
+                <div className="hs-trust-title">{t.title}</div>
+                <div className="hs-trust-sub">{t.sub}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Best Selling Products ──────────────────────────── */}
+        <div>
+          <div className="hs-sec-head">
+            <div className="hs-sec-title">
+              {hasResults ? "You May Also Need" : "Best Selling Products"}
+            </div>
+            <Link href="/store" className="hs-view-all">View All →</Link>
+          </div>
+
+          {storeLoading ? (
+            <div className="hs-prod-grid">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} style={{ background:"#fff", borderRadius:13, overflow:"hidden", border:"1.5px solid #f0f0f0" }}>
+                  <div className="hs-skeleton" style={{ height:120 }} />
+                  <div style={{ padding:10 }}>
+                    <div className="hs-skeleton" style={{ height:12, marginBottom:6, borderRadius:4 }} />
+                    <div className="hs-skeleton" style={{ height:10, width:"60%", marginBottom:8, borderRadius:4 }} />
+                    <div className="hs-skeleton" style={{ height:30, borderRadius:7 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : storeProducts.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"40px 0", color:"#aaa" }}>No products found.</div>
+          ) : (
+            <div className="hs-prod-grid">
+              {storeProducts.slice(0, 12).map(p => (
+                <div key={p.id} className="hs-prod-card">
+                  <Link href={`/product/${p.id}`} style={{ textDecoration:"none", display:"block" }}>
+                    <div className="hs-prod-img" style={{ background: p.bg || "#f3f4f6" }}>
+                      {p.discount > 0 && <span className="hs-disc-badge">{p.discount}% OFF</span>}
+                      {p.image
+                        ? <img src={p.image} alt={p.name} style={{ maxHeight:"100%", maxWidth:"100%", objectFit:"contain" }} />
+                        : <span>{p.emoji || "🛒"}</span>
+                      }
+                    </div>
+                    <div className="hs-prod-body">
+                      <div className="hs-prod-name">{p.name}</div>
+                      <div className="hs-prod-cat">{p.category}</div>
+                      <div className="hs-prod-stars">
+                        <Stars rating={parseFloat(p.rating)} />
+                        <span className="hs-rating-num">{p.rating}</span>
+                      </div>
+                      <div className="hs-prod-price">
+                        <span className="hs-price-now">₹{p.price}</span>
+                        <span className="hs-price-mrp">₹{p.mrp}</span>
+                      </div>
+                    </div>
+                  </Link>
+                  <div style={{ padding:"0 10px 10px" }}>
+                    <button
+                      className={`hs-add-btn ${addedIds.has(p.id) ? "added" : ""}`}
+                      disabled={addedIds.has(p.id)}
+                      onClick={() => addToCart({ id: p.id, name: p.name, price: p.price, quantity: 1, category: p.category, emoji: p.emoji, image: p.image })}
+                    >
+                      {addedIds.has(p.id) ? "✓ Added" : "Add to Cart"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* See full store CTA */}
+          <div style={{ textAlign:"center", marginTop:22 }}>
+            <Link href="/store">
+              <button style={{ background:"#1a6b3c", color:"#fff", border:"none", borderRadius:10, padding:"13px 36px", fontSize:"0.9rem", fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                Browse Full Store →
+              </button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Footer ──────────────────────────────────────────── */}
       <footer className="footer">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
           <span>© {new Date().getFullYear()} Mediora. All rights reserved.</span>
           <div className="flex gap-6">
-            <Link href="/privacy" className="hover:text-mint transition">Privacy</Link>
-            <Link href="/terms" className="hover:text-mint transition">Terms</Link>
-            <Link href="/refund" className="hover:text-mint transition">Refund</Link>
+            <Link href="/privacy"    className="hover:text-mint transition">Privacy</Link>
+            <Link href="/terms"      className="hover:text-mint transition">Terms</Link>
+            <Link href="/refund"     className="hover:text-mint transition">Refund</Link>
             <Link href="/disclaimer" className="hover:text-mint transition">Disclaimer</Link>
           </div>
           <span>Not a substitute for professional medical advice.</span>

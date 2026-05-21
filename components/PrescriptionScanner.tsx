@@ -2,13 +2,78 @@
 
 import { useState, useRef } from 'react';
 import Tesseract from 'tesseract.js';
-import { preprocessImage } from '../lib/imagePreprocessing';
-import { medicalDictionary, calculateConfidence } from '../lib/medicalDictionary';
+
+const medicalDictionary = {
+  entries: [
+    { medicine: 'Paracetamol', info: { type: 'Analgesic', pricePerTablet: 5, category: 'Pain Relief', defaultDosage: '500mg' } },
+    { medicine: 'Ibuprofen', info: { type: 'NSAID', pricePerTablet: 8, category: 'Pain Relief', defaultDosage: '400mg' } },
+    { medicine: 'Cetirizine', info: { type: 'Antihistamine', pricePerTablet: 7, category: 'Allergy', defaultDosage: '10mg' } },
+    { medicine: 'Loratadine', info: { type: 'Antihistamine', pricePerTablet: 6, category: 'Allergy', defaultDosage: '10mg' } },
+    { medicine: 'Omeprazole', info: { type: 'Proton Pump Inhibitor', pricePerTablet: 10, category: 'Digestive', defaultDosage: '20mg' } },
+    { medicine: 'Amoxicillin', info: { type: 'Antibiotic', pricePerTablet: 12, category: 'Antibiotic', defaultDosage: '500mg' } },
+    { medicine: 'Azithromycin', info: { type: 'Antibiotic', pricePerTablet: 15, category: 'Antibiotic', defaultDosage: '250mg' } },
+    { medicine: 'Levocetirizine', info: { type: 'Antihistamine', pricePerTablet: 9, category: 'Allergy', defaultDosage: '5mg' } },
+    { medicine: 'Pantoprazole', info: { type: 'Proton Pump Inhibitor', pricePerTablet: 11, category: 'Digestive', defaultDosage: '40mg' } },
+  ],
+  findBestMatch: function (query: string) {
+    if (!query) return null;
+    const normalizedQuery = query.toLowerCase().trim();
+    return this.entries.find((entry) => entry.medicine.toLowerCase() === normalizedQuery)
+      || this.entries.find((entry) => entry.medicine.toLowerCase().includes(normalizedQuery))
+      || this.entries.find((entry) => normalizedQuery.includes(entry.medicine.toLowerCase()))
+      || null;
+  }
+};
 
 interface PrescriptionScannerProps {
   onproductsDetected: (products: any[]) => void;
   onSearchQuery?: (query: string) => void;
 }
+
+// ✅ Add the missing preprocessImage function
+const preprocessImage = async (file: File): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    img.onload = () => {
+      // Reduce image size for better processing
+      const maxWidth = 1024;
+      const maxHeight = 1024;
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+      if (height > maxHeight) {
+        width = (width * maxHeight) / height;
+        height = maxHeight;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      ctx?.drawImage(img, 0, 0, width, height);
+      
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to process image'));
+          }
+        },
+        'image/jpeg',
+        0.8
+      );
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
 
 export default function PrescriptionScanner({ onproductsDetected, onSearchQuery }: PrescriptionScannerProps) {
   const [isOpen, setIsOpen] = useState(false);

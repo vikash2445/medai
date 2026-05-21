@@ -6,7 +6,7 @@ export const fetchCache = 'force-no-store';
 import { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import Link from 'next/link';
-import Navbar from '../components/Navbar';
+import Navbar from '../../components/Navbar';
 
 // ── Cashfree SDK loader ────────────────────────────────────────────────────────
 async function loadCashfree() {

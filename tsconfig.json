@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
@@ -17,15 +13,15 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],                    // ← YEH ADD KAREIN
+      "@app/*": ["./app/*"],
+      "@lib/*": ["./app/lib/*"],
+      "@/components/*": ["./components/*"],  // ← Components ke liye
+      "@/hooks/*": ["./hooks/*"],           // ← Hooks ke liye
+      "@/types/*": ["./types/*"],           // ← Types ke liye
+      "@/lib/*": ["./lib/*"]                // ← Root lib ke liye (agar hai to)
     }
   },
   "include": [
@@ -35,7 +31,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

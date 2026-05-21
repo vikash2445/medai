@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useCart } from '../context/CartContext';
+import { useCart } from '@/app/context/CartContext';
 
 export default function CartDrawer() {
   const { cart, cartTotal, updateQuantity, removeFromCart } = useCart();
