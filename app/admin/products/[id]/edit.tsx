@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@lib/supabase-admin';
 import toast from 'react-hot-toast';
+import ImageUpload from '@/components/admin/ImageUpload';
 
 interface EditProductFormProps {
   product: any;
@@ -19,6 +20,7 @@ export default function EditProductForm({ product }: EditProductFormProps) {
   const [formData, setFormData] = useState(product);
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState('');
+  const [images, setImages] = useState<string[]>(product?.images || (product?.image ? [product.image] : []));
 
   const updateField = (field: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
@@ -38,29 +40,34 @@ export default function EditProductForm({ product }: EditProductFormProps) {
   const handleSave = async () => {
     setSaving(true);
     
+    const updateData: any = {
+      name: formData.name,
+      slug: formData.slug,
+      category: formData.category,
+      type: formData.type,
+      generic: formData.generic,
+      description: formData.description,
+      price: formData.price,
+      mrp: formData.mrp,
+      stock: formData.stock,
+      tags: formData.tags || [],
+      is_antibiotic: formData.is_antibiotic,
+      prescription_required: formData.prescription_required,
+      featured: formData.featured,
+      bestseller: formData.bestseller,
+      combo_offer: formData.combo_offer,
+      rating: formData.rating,
+      reviews: formData.reviews,
+      updated_at: new Date().toISOString(),
+      // Multiple images support
+      images: images,
+      // Keep first image as main image for backward compatibility
+      image: images.length > 0 ? images[0] : null,
+    };
+    
     const { error } = await supabase
       .from('products')
-      .update({
-        name: formData.name,
-        slug: formData.slug,
-        category: formData.category,
-        type: formData.type,
-        generic: formData.generic,
-        description: formData.description,
-        image: formData.image,
-        price: formData.price,
-        mrp: formData.mrp,
-        stock: formData.stock,
-        tags: formData.tags || [],
-        is_antibiotic: formData.is_antibiotic,
-        prescription_required: formData.prescription_required,
-        featured: formData.featured,
-        bestseller: formData.bestseller,
-        combo_offer: formData.combo_offer,
-        rating: formData.rating,
-        reviews: formData.reviews,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', formData.id);
     
     setSaving(false);
@@ -76,6 +83,18 @@ export default function EditProductForm({ product }: EditProductFormProps) {
   return (
     <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
       <div className="space-y-4">
+        {/* Multiple Images Upload */}
+        <div>
+          <ImageUpload
+            values={images}
+            onChange={(urls) => setImages(urls || [])}
+            bucket="product-images"
+            folder="products"
+            label="Product Images"
+            maxImages={5}
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm text-gray-300 mb-1">Product Name</label>

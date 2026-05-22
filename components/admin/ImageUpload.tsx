@@ -1,32 +1,36 @@
-// components/admin/ImageUpload.tsx
 'use client';
 
 import { useState } from 'react';
 import { createBrowserClient } from '@lib/supabase-admin';
-import { Upload, X } from 'lucide-react';
-import Image from 'next/image';
+import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ImageUploadProps {
-  value: string | null;
-  onChange: (url: string | null) => void;
+  values: string[] | null;  // Changed from value to values (array)
+  onChange: (urls: string[] | null) => void;
   bucket?: string;
   folder?: string;
   label?: string;
+  maxImages?: number;
 }
 
 export default function ImageUpload({ 
-  value, 
+  values = [], 
   onChange, 
   bucket = 'product-images', 
   folder = 'products',
-  label = 'Product Image' 
+  label = 'Product Images',
+  maxImages = 5
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const supabase = createBrowserClient();
 
   const uploadImage = async (file: File) => {
-    // Validate file
+    if (values.length >= maxImages) {
+      toast.error(`Maximum ${maxImages} images allowed`);
+      return;
+    }
+
     if (file.size > 2 * 1024 * 1024) {
       toast.error('Image size should be less than 2MB');
       return;
@@ -44,7 +48,6 @@ export default function ImageUpload({
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${folder}/${fileName}`;
 
-      // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from(bucket)
         .upload(filePath, file, {
@@ -54,22 +57,16 @@ export default function ImageUpload({
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        if (uploadError.message === 'Bucket not found') {
-          toast.error(`Bucket "${bucket}" not found. Please check storage configuration.`);
-        } else if (uploadError.message.includes('row-level security')) {
-          toast.error('Permission denied. Please check storage policies.');
-        } else {
-          toast.error(uploadError.message);
-        }
+        toast.error(uploadError.message);
         return;
       }
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from(bucket)
         .getPublicUrl(filePath);
 
-      onChange(publicUrl);
+      const newImages = [...values, publicUrl];
+      onChange(newImages);
       toast.success('Image uploaded successfully');
       
     } catch (error) {
@@ -80,6 +77,12 @@ export default function ImageUpload({
     }
   };
 
+  const removeImage = (indexToRemove: number) => {
+    const newImages = values.filter((_, index) => index !== indexToRemove);
+    onChange(newImages.length > 0 ? newImages : null);
+    toast.success('Image removed');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -88,30 +91,38 @@ export default function ImageUpload({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-        {label}
+        {label} ({values.length}/{maxImages})
       </label>
       
-      {value ? (
-        <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-200">
-          <img src={value} alt="Preview" className="w-full h-full object-cover" />
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-          >
-            <X size={14} />
-          </button>
+      {/* Image Grid */}
+      {values.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          {values.map((url, index) => (
+            <div key={index} className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-200 group">
+              <img src={url} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removeImage(index)}
+                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
         </div>
-      ) : (
-        <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-500 transition">
+      )}
+      
+      {/* Upload Button */}
+      {values.length < maxImages && (
+        <label className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-500 transition">
           <div className="text-center">
             {uploading ? (
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500 mx-auto"></div>
             ) : (
               <>
-                <Upload size={24} className="mx-auto text-slate-400" />
+                <Upload size={20} className="mx-auto text-slate-400" />
                 <span className="text-xs text-slate-500 mt-1">Upload</span>
               </>
             )}

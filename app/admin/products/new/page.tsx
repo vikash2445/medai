@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@lib/supabase-admin';
+import ImageUpload from '@/components/admin/ImageUpload';
 
 const CATEGORIES = ['Medicines', 'Skincare', 'Supplements', 'Baby Care', 'Fitness', 'Immunity', 'Personal Care', 'Healthcare'];
 const TYPES = ['Tablet', 'Capsule', 'Syrup', 'Cream', 'Drops', 'Injection', 'Powder', 'Gel', 'Lotion', 'Other'];
@@ -33,12 +34,6 @@ const newProductCss = `
   .np-checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
   .np-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #0fa381; }
   
-  .np-image-upload { border: 2px dashed #21262d; border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.18s; background: #0d1117; }
-  .np-image-upload:hover { border-color: #0fa381; background: rgba(15, 163, 129, 0.05); }
-  .np-image-preview { position: relative; width: 120px; height: 120px; border-radius: 12px; overflow: hidden; background: #0d1117; border: 1px solid #21262d; }
-  .np-image-preview img { width: 100%; height: 100%; object-fit: cover; }
-  .np-remove-image { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); border: none; border-radius: 6px; color: #fff; padding: 4px 8px; font-size: 0.7rem; cursor: pointer; }
-  
   .np-tags-input { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; background: #0d1117; border: 1px solid #21262d; border-radius: 8px; min-height: 42px; }
   .np-tag { display: inline-flex; align-items: center; gap: 6px; background: rgba(15, 163, 129, 0.15); color: #0fa381; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; }
   .np-tag-remove { cursor: pointer; background: none; border: none; color: #8b949e; font-size: 14px; padding: 0 2px; }
@@ -65,7 +60,7 @@ interface NewProductForm {
   type: string;
   generic: string;
   description: string;
-  image: string | null;
+  images: string[];
   price: number;
   mrp: number;
   stock: number;
@@ -87,7 +82,7 @@ const EMPTY_FORM: NewProductForm = {
   type: '',
   generic: '',
   description: '',
-  image: null,
+  images: [],
   price: 0,
   mrp: 0,
   stock: 0,
@@ -117,59 +112,11 @@ export default function NewProductPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [tagInput, setTagInput] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   const setField = useCallback((field: keyof NewProductForm, value: unknown) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setError('');
   }, []);
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image size should be less than 5MB');
-      return;
-    }
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload a valid image file');
-      return;
-    }
-
-    setUploadingImage(true);
-    setError('');
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `products/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(filePath);
-
-      setField('image', publicUrl);
-    } catch (err) {
-      setError('Failed to upload image. Please try again.');
-      console.error(err);
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const removeImage = () => {
-    setField('image', null);
-  };
 
   const addTag = () => {
     const trimmedTag = tagInput.trim();
@@ -247,7 +194,8 @@ export default function NewProductPage() {
       type: formData.type || null,
       generic: formData.generic || null,
       description: formData.description || null,
-      image: formData.image,
+      images: formData.images,
+      image: formData.images.length > 0 ? formData.images[0] : null,
       price: formData.price,
       mrp: formData.mrp || null,
       stock: formData.stock,
@@ -298,41 +246,16 @@ export default function NewProductPage() {
           {success && <div className="np-success">{success}</div>}
 
           <div className="np-grid">
-            {/* Image Upload */}
+            {/* Multiple Images Upload */}
             <div className="np-field-full">
-              <label className="np-label">Product Image</label>
-              <div>
-                {formData.image ? (
-                  <div className="np-image-preview">
-                    <img src={formData.image} alt="Product preview" />
-                    <button type="button" onClick={removeImage} className="np-remove-image">
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <label className="np-image-upload">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      style={{ display: 'none' }}
-                      disabled={uploadingImage}
-                    />
-                    <div style={{ color: '#8b949e' }}>
-                      {uploadingImage ? (
-                        'Uploading...'
-                      ) : (
-                        <>
-                          📸 Click or drag to upload image
-                          <div style={{ fontSize: '0.7rem', marginTop: '8px' }}>
-                            Recommended: Square image, max 5MB
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </label>
-                )}
-              </div>
+              <ImageUpload
+                values={formData.images}
+                onChange={(urls) => setField('images', urls || [])}
+                bucket="product-images"
+                folder="products"
+                label="Product Images"
+                maxImages={5}
+              />
             </div>
 
             {/* Basic Information */}
@@ -558,7 +481,7 @@ export default function NewProductPage() {
             <button type="button" onClick={() => router.push('/admin/products')} className="np-cancel-btn">
               Cancel
             </button>
-            <button type="submit" disabled={loading || uploadingImage} className="np-save-btn">
+            <button type="submit" disabled={loading} className="np-save-btn">
               {loading ? 'Creating Product...' : 'Create Product'}
             </button>
           </div>
