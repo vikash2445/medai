@@ -518,26 +518,6 @@ export default function MedAI() {
           ══════════════════════════════════════════════════════════ */}
       <div className="home-store hs-store-wrap" style={{ padding: "0 14px 40px", maxWidth: 1400, margin: "0 auto" }}>
 
-        {/* ── "How it works" strip — only when no search ──────── */}
-        {!hasResults && (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:22 }}>
-            {[
-              { icon:"🗣️", title:"Describe Symptoms", desc:"Type or use voice to describe how you feel." },
-              { icon:"🤖", title:"AI Analysis",       desc:"AI finds the right OTC medications for you." },
-              { icon:"🛒", title:"Add to Cart",       desc:"Choose your preferred medication." },
-              { icon:"💳", title:"Secure Payment",    desc:"Pay with Cashfree — UPI, cards, netbanking." },
-            ].map((step, i) => (
-              <div key={i} style={{ background:"#fff", borderRadius:12, padding:"18px 16px", display:"flex", gap:12, alignItems:"flex-start", border:"1px solid #eee", boxShadow:"0 2px 6px rgba(0,0,0,.04)" }}>
-                <span style={{ fontSize:"1.6rem", flexShrink:0 }}>{step.icon}</span>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:"0.85rem", marginBottom:3 }}>{step.title}</div>
-                  <div style={{ fontSize:"0.72rem", color:"#777", lineHeight:1.4 }}>{step.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* ── Trust bar ──────────────────────────────────────── */}
         <div className="hs-trust" style={{ marginBottom:22 }}>
           {TRUST_ITEMS.map((t, i) => (
