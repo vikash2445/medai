@@ -1,313 +1,250 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@lib/supabase-admin';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
-// CSS (same as before)
-const css = `
-  .apr-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:14px; }
-  .apr-title  { font-family:'DM Serif Display',serif; font-size:1.7rem; color:#e6edf3; margin-bottom:3px; }
-  .apr-sub    { font-size:0.82rem; color:#8b949e; }
-  .apr-add-btn { display:inline-flex; align-items:center; gap:7px; background:#0fa381; color:#fff; border:none; border-radius:10px; padding:10px 20px; font-family:'Outfit',sans-serif; font-size:0.85rem; font-weight:600; cursor:pointer; text-decoration:none; transition:background 0.18s; }
-  .apr-add-btn:hover { background:#0a7860; }
-  .apr-stats { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:22px; }
-  .apr-stat  { background:#161b22; border:1px solid #21262d; border-radius:12px; padding:16px 18px; }
-  .apr-stat-val   { font-family:'DM Serif Display',serif; font-size:1.5rem; line-height:1; margin-bottom:4px; }
-  .apr-stat-label { font-size:0.72rem; color:#8b949e; }
-  .apr-filters { background:#161b22; border:1px solid #21262d; border-radius:12px; padding:12px 18px; display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
-  .apr-filter-pill { padding:5px 14px; border-radius:50px; border:1px solid #21262d; background:transparent; font-family:'Outfit',sans-serif; font-size:0.76rem; font-weight:500; color:#8b949e; cursor:pointer; transition:all 0.18s; text-decoration:none; }
-  .apr-filter-pill:hover, .apr-filter-pill.active { background:rgba(15,163,129,0.12); border-color:rgba(15,163,129,0.35); color:#0fa381; }
-  .apr-table-wrap { background:#161b22; border:1px solid #21262d; border-radius:14px; overflow:hidden; overflow-x:auto; }
-  .apr-table { width:100%; border-collapse:collapse; min-width:900px; }
-  .apr-thead tr { background:#0d1117; border-bottom:1px solid #21262d; }
-  .apr-th { padding:12px 16px; text-align:left; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#8b949e; white-space:nowrap; }
-  .apr-tbody tr { border-bottom:1px solid #21262d; transition:background 0.15s; }
-  .apr-tbody tr:hover { background:rgba(255,255,255,0.025); }
-  .apr-td { padding:12px 16px; vertical-align:middle; font-size:0.85rem; color:#e6edf3; }
-  .apr-product-cell { display:flex; align-items:center; gap:12px; }
-  .apr-thumb { width:44px; height:44px; border-radius:9px; background:#0d1117; display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0; overflow:hidden; }
-  .apr-thumb img { width:100%; height:100%; object-fit:cover; }
-  .apr-prod-name { font-weight:600; color:#e6edf3; font-size:0.85rem; line-height:1.3; }
-  .apr-prod-slug { font-family:'DM Mono',monospace; font-size:0.7rem; color:#8b949e; margin-top:2px; }
-  .apr-price-cell { font-family:'DM Mono',monospace; font-size:0.85rem; }
-  .apr-price-now { color:#0fa381; font-weight:600; }
-  .apr-price-mrp { color:#8b949e; text-decoration:line-through; font-size:0.72rem; }
-  .apr-badge { display:inline-flex; align-items:center; gap:4px; font-size:0.66rem; font-weight:700; padding:2px 9px; border-radius:50px; }
-  .apr-badge-purple { background:rgba(139,92,246,0.15); color:#8b5cf6; }
-  .apr-badge-yellow { background:rgba(240,180,41,0.15); color:#f0b429; }
-  .apr-badge-red { background:rgba(214,64,64,0.15); color:#d64040; }
-  .apr-badge-blue { background:rgba(59,130,246,0.15); color:#3b82f6; }
-  .apr-tag { display:inline-block; font-size:0.62rem; font-weight:600; padding:2px 8px; border-radius:50px; background:rgba(15,163,129,0.1); color:#0fa381; margin:1px; }
-  .apr-rating { display:flex; align-items:center; gap:5px; font-size:0.78rem; }
-  .apr-stars { color:#f0b429; }
-  .apr-action-btn { padding:5px 11px; border-radius:7px; font-size:0.73rem; font-weight:600; text-decoration:none; transition:all 0.18s; border:1px solid #21262d; color:#8b949e; background:transparent; cursor:pointer; font-family:'Outfit',sans-serif; display:inline-block; }
-  .apr-action-btn:hover { border-color:rgba(15,163,129,0.4); color:#0fa381; }
-  .apr-stock-bar { display:flex; flex-direction:column; gap:3px; }
-  .apr-stock-val { font-size:0.82rem; font-weight:600; }
-  .apr-stock-track { width:60px; height:4px; background:#21262d; border-radius:2px; overflow:hidden; }
-  .apr-stock-fill { height:100%; border-radius:2px; }
-  .apr-empty { padding:60px 0; text-align:center; color:#8b949e; }
-`;
-
-interface Product {
-  id: number;
-  name: string;
-  slug: string;
-  category: string;
-  generic?: string;
-  price: number;
-  mrp?: number;
-  stock: number;
-  image?: string;
-  featured: boolean;
-  bestseller: boolean;
-  combo_offer: boolean;
-  is_antibiotic: boolean;
-  prescription_required: boolean;
-  rating: number;
-  reviews: number;
-  tags: string[];
-  created_at: string;
+interface EditProductFormProps {
+  product: any;
 }
 
-function stockColor(stock: number): string {
-  if (stock <= 0) return '#d64040';
-  if (stock <= 10) return '#f0b429';
-  return '#0fa381';
-}
+const CATEGORIES = ['Medicines', 'Skincare', 'Supplements', 'Baby Care', 'Fitness', 'Immunity', 'Personal Care', 'Healthcare'];
+const TYPES = ['Tablet', 'Capsule', 'Syrup', 'Cream', 'Drops', 'Injection', 'Powder', 'Gel', 'Lotion', 'Other'];
 
-export default function AdminProductsPage() {
+export default function EditProductForm({ product }: EditProductFormProps) {
+  const router = useRouter();
   const supabase = createBrowserClient();
-  const searchParams = useSearchParams();
-  const categoryFromUrl = searchParams.get('category') || '';
   
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState<string>(categoryFromUrl);
-  
-  // Stats
-  const [featuredCount, setFeaturedCount] = useState(0);
-  const [bestsellerCount, setBestsellerCount] = useState(0);
-  const [outOfStockCount, setOutOfStockCount] = useState(0);
-  const [lowStockCount, setLowStockCount] = useState(0);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [formData, setFormData] = useState(product);
+  const [saving, setSaving] = useState(false);
+  const [tagInput, setTagInput] = useState('');
 
-  // ✅ FIXED: fetchProducts with proper dependencies - NO infinite loop
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    
-    try {
-      let query = supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (categoryFilter) {
-        query = query.eq('category', categoryFilter);
-      }
-      
-      const { data, error } = await query;
-      
-      if (!error && data) {
-        const all = data as Product[];
-        setProducts(all);
-        
-        // Calculate stats
-        setFeaturedCount(all.filter(p => p.featured).length);
-        setBestsellerCount(all.filter(p => p.bestseller).length);
-        setOutOfStockCount(all.filter(p => (p.stock ?? 0) <= 0).length);
-        setLowStockCount(all.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 10).length);
-        
-        // Get unique categories
-        const uniqueCats = [...new Set(all.map(p => p.category).filter(Boolean))];
-        setCategories(uniqueCats);
-      }
-    } catch (err) {
-      console.error('Fetch error:', err);
-      toast.error('Failed to load products');
-    } finally {
-      setLoading(false);
-    }
-  }, [categoryFilter, supabase]);
-
-  // ✅ FIXED: useEffect with proper dependency
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]); // fetchProducts is stable because of useCallback
-
-  // Handle category filter change
-  const handleCategoryFilter = (category: string) => {
-    setCategoryFilter(category);
-    // Update URL without reload
-    const url = new URL(window.location.href);
-    if (category) {
-      url.searchParams.set('category', category);
-    } else {
-      url.searchParams.delete('category');
-    }
-    window.history.pushState({}, '', url.toString());
+  const updateField = (field: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-      </div>
-    );
-  }
+  const addTag = () => {
+    if (tagInput.trim() && !formData.tags?.includes(tagInput.trim())) {
+      updateField('tags', [...(formData.tags || []), tagInput.trim()]);
+      setTagInput('');
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    updateField('tags', formData.tags?.filter((t: string) => t !== tag) || []);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    
+    const { error } = await supabase
+      .from('products')
+      .update({
+        name: formData.name,
+        slug: formData.slug,
+        category: formData.category,
+        type: formData.type,
+        generic: formData.generic,
+        description: formData.description,
+        image: formData.image,
+        price: formData.price,
+        mrp: formData.mrp,
+        stock: formData.stock,
+        tags: formData.tags || [],
+        is_antibiotic: formData.is_antibiotic,
+        prescription_required: formData.prescription_required,
+        featured: formData.featured,
+        bestseller: formData.bestseller,
+        combo_offer: formData.combo_offer,
+        rating: formData.rating,
+        reviews: formData.reviews,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', formData.id);
+    
+    setSaving(false);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Product updated successfully!');
+      router.push('/admin/products');
+    }
+  };
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: css }} />
-
-      <div className="apr-header">
-        <div>
-          <h1 className="apr-title">Products</h1>
-          <p className="apr-sub">{products.length} products in the store</p>
+    <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Product Name</label>
+            <input
+              type="text"
+              value={formData.name || ''}
+              onChange={(e) => updateField('name', e.target.value)}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Slug</label>
+            <input
+              type="text"
+              value={formData.slug || ''}
+              onChange={(e) => updateField('slug', e.target.value)}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            />
+          </div>
         </div>
-        <Link href="/admin/products/new" className="apr-add-btn">+ Add Product</Link>
-      </div>
 
-      {/* Stats */}
-      <div className="apr-stats">
-        {[
-          { val: products.length, label: 'Total Products', color: '#e6edf3' },
-          { val: featuredCount, label: 'Featured', color: '#8b5cf6' },
-          { val: bestsellerCount, label: 'Bestsellers', color: '#f0b429' },
-          { val: lowStockCount, label: 'Low Stock (≤10)', color: '#f0b429' },
-          { val: outOfStockCount, label: 'Out of Stock', color: '#d64040' },
-        ].map((s, i) => (
-          <div key={i} className="apr-stat">
-            <div className="apr-stat-val" style={{ color: s.color }}>{s.val}</div>
-            <div className="apr-stat-label">{s.label}</div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Category</label>
+            <select
+              value={formData.category || ''}
+              onChange={(e) => updateField('category', e.target.value)}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            >
+              <option value="">Select Category</option>
+              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+            </select>
           </div>
-        ))}
-      </div>
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Type</label>
+            <select
+              value={formData.type || ''}
+              onChange={(e) => updateField('type', e.target.value)}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            >
+              <option value="">Select Type</option>
+              {TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
 
-      {/* Category filter pills */}
-      <div className="apr-filters">
-        <span style={{ fontSize: '0.75rem', color: '#8b949e' }}>Category:</span>
-        <button 
-          onClick={() => handleCategoryFilter('')} 
-          className={`apr-filter-pill ${categoryFilter === '' ? 'active' : ''}`}
-        >
-          All
-        </button>
-        {categories.map(cat => (
-          <button 
-            key={cat} 
-            onClick={() => handleCategoryFilter(cat)} 
-            className={`apr-filter-pill ${categoryFilter === cat ? 'active' : ''}`}
+        <div>
+          <label className="block text-sm text-gray-300 mb-1">Generic Name</label>
+          <input
+            type="text"
+            value={formData.generic || ''}
+            onChange={(e) => updateField('generic', e.target.value)}
+            className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Price (₹)</label>
+            <input
+              type="number"
+              value={formData.price || 0}
+              onChange={(e) => updateField('price', Number(e.target.value))}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">MRP (₹)</label>
+            <input
+              type="number"
+              value={formData.mrp || ''}
+              onChange={(e) => updateField('mrp', Number(e.target.value))}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Stock</label>
+            <input
+              type="number"
+              value={formData.stock || 0}
+              onChange={(e) => updateField('stock', Number(e.target.value))}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">Rating</label>
+            <input
+              type="number"
+              step="0.1"
+              min="1"
+              max="5"
+              value={formData.rating || 4.5}
+              onChange={(e) => updateField('rating', Number(e.target.value))}
+              className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-300 mb-1">Description</label>
+          <textarea
+            value={formData.description || ''}
+            onChange={(e) => updateField('description', e.target.value)}
+            rows={4}
+            className="w-full p-2 bg-[#0d1117] border border-[#21262d] rounded text-white"
+          />
+        </div>
+
+        {/* Tags */}
+        <div>
+          <label className="block text-sm text-gray-300 mb-1">Tags</label>
+          <div className="flex flex-wrap gap-2 p-2 bg-[#0d1117] border border-[#21262d] rounded min-h-[42px]">
+            {formData.tags?.map((tag: string) => (
+              <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-green-900/30 text-green-400 rounded-full text-sm">
+                {tag}
+                <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-400">×</button>
+              </span>
+            ))}
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addTag()}
+              placeholder="Type tag and press Enter"
+              className="flex-1 bg-transparent outline-none text-sm text-white"
+            />
+          </div>
+        </div>
+
+        {/* Checkboxes */}
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex items-center gap-2 text-gray-300">
+            <input type="checkbox" checked={formData.featured} onChange={(e) => updateField('featured', e.target.checked)} />
+            <span>Featured</span>
+          </label>
+          <label className="flex items-center gap-2 text-gray-300">
+            <input type="checkbox" checked={formData.bestseller} onChange={(e) => updateField('bestseller', e.target.checked)} />
+            <span>Bestseller</span>
+          </label>
+          <label className="flex items-center gap-2 text-gray-300">
+            <input type="checkbox" checked={formData.is_antibiotic} onChange={(e) => updateField('is_antibiotic', e.target.checked)} />
+            <span>Antibiotic</span>
+          </label>
+          <label className="flex items-center gap-2 text-gray-300">
+            <input type="checkbox" checked={formData.prescription_required} onChange={(e) => updateField('prescription_required', e.target.checked)} />
+            <span>Prescription Required</span>
+          </label>
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3 pt-4">
+          <button
+            onClick={() => router.back()}
+            className="px-4 py-2 border border-[#21262d] rounded text-gray-300 hover:bg-white/5"
           >
-            {cat}
+            Cancel
           </button>
-        ))}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
-
-      {/* Table */}
-      <div className="apr-table-wrap">
-        {products.length === 0 ? (
-          <div className="apr-empty">
-            <div style={{ fontSize: '3rem', marginBottom: 12 }}>🏪</div>
-            <div>No products yet</div>
-          </div>
-        ) : (
-          <table className="apr-table">
-            <thead className="apr-thead">
-              <tr>
-                <th className="apr-th">Product</th>
-                <th className="apr-th">Category</th>
-                <th className="apr-th">Price / MRP</th>
-                <th className="apr-th">Stock</th>
-                <th className="apr-th">Rating</th>
-                <th className="apr-th">Badges</th>
-                <th className="apr-th">Tags</th>
-                <th className="apr-th">Action</th>
-              </tr>
-            </thead>
-            <tbody className="apr-tbody">
-              {products.map(prod => {
-                const stock = prod.stock ?? 0;
-                const sc = stockColor(stock);
-                const stockPct = Math.min((stock / 100) * 100, 100);
-                return (
-                  <tr key={prod.id}>
-                    <td className="apr-td">
-                      <div className="apr-product-cell">
-                        <div className="apr-thumb">
-                          {prod.image ? (
-                            <img src={prod.image} alt={prod.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            '💊'
-                          )}
-                        </div>
-                        <div>
-                          <div className="apr-prod-name">{prod.name}</div>
-                          {prod.slug && <div className="apr-prod-slug">/{prod.slug}</div>}
-                          {prod.generic && <div style={{ fontSize: '0.7rem', color: '#8b949e', marginTop: 1 }}>{prod.generic}</div>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="apr-td">
-                      <span className="apr-badge apr-badge-purple">{prod.category ?? '—'}</span>
-                    </td>
-                    <td className="apr-td">
-                      <div className="apr-price-cell">
-                        <div className="apr-price-now">₹{prod.price}</div>
-                        {prod.mrp && prod.mrp > prod.price && (
-                          <div className="apr-price-mrp">₹{prod.mrp}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="apr-td">
-                      <div className="apr-stock-bar">
-                        <div className="apr-stock-val" style={{ color: sc }}>{stock}</div>
-                        <div className="apr-stock-track">
-                          <div className="apr-stock-fill" style={{ width: `${stockPct}%`, background: sc }} />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="apr-td">
-                      <div className="apr-rating">
-                        <span className="apr-stars">★</span>
-                        <span style={{ color: '#e6edf3', fontWeight: 600 }}>{prod.rating ?? '—'}</span>
-                        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>({prod.reviews ?? 0})</span>
-                      </div>
-                    </td>
-                    <td className="apr-td">
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {prod.featured && <span className="apr-badge apr-badge-purple">Featured</span>}
-                        {prod.bestseller && <span className="apr-badge apr-badge-yellow">Bestseller</span>}
-                        {prod.combo_offer && <span className="apr-badge apr-badge-blue">Combo</span>}
-                        {prod.is_antibiotic && <span className="apr-badge apr-badge-red">Rx</span>}
-                        {prod.prescription_required && <span className="apr-badge apr-badge-red">Prescription</span>}
-                        {stock <= 0 && <span className="apr-badge apr-badge-red">Out of Stock</span>}
-                        {stock > 0 && stock <= 10 && <span className="apr-badge apr-badge-yellow">Low Stock</span>}
-                      </div>
-                    </td>
-                    <td className="apr-td">
-                      <div style={{ display: 'flex', flexWrap: 'wrap', maxWidth: 160 }}>
-                        {(prod.tags ?? []).slice(0, 3).map((t: string, i: number) => (
-                          <span key={i} className="apr-tag">{t}</span>
-                        ))}
-                        {(prod.tags ?? []).length > 3 && (
-                          <span className="apr-tag">+{(prod.tags ?? []).length - 3}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="apr-td">
-                      <Link href={`/admin/products/${prod.id}`} className="apr-action-btn">Edit →</Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </>
+    </div>
   );
 }
