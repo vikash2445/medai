@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useAuth, useUser } from '@clerk/nextjs';  // ← Clerk use karo
 import { 
   LayoutDashboard, Package, ShoppingBag, Users, 
   FolderTree, CreditCard, Truck, Settings, 
   FileText, LogOut, ChevronLeft, ChevronRight,
   TrendingUp, Heart, Bell, Star, Menu, X
 } from 'lucide-react';
-import { signOut, useSession } from 'next-auth/react';
 
 interface NavItem {
   href: string;
@@ -29,7 +29,7 @@ const navigation: NavItem[] = [
     href: '/admin/orders',
     icon: <ShoppingBag size={18} />,
     label: 'Orders',
-    badge: 0, // Will be updated dynamically
+    badge: 0,
   },
   {
     href: '/admin/customers',
@@ -86,7 +86,9 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { signOut, isSignedIn } = useAuth();  // ← Clerk useAuth
+  const { user } = useUser();  // ← Clerk useUser
+  
   const [expandedItems, setExpandedItems] = useState<string[]>(['/admin/settings']);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingPrescriptionsCount, setPendingPrescriptionsCount] = useState(0);
@@ -95,14 +97,12 @@ export default function AdminSidebar({
   useEffect(() => {
     async function fetchCounts() {
       try {
-        // Fetch pending orders count
         const ordersRes = await fetch('/api/admin/orders?status=pending&limit=1');
         const ordersData = await ordersRes.json();
         if (ordersData.success) {
           setPendingOrdersCount(ordersData.pagination?.total || 0);
         }
 
-        // Fetch pending prescriptions count
         const prescriptionsRes = await fetch('/api/admin/prescriptions?status=pending&limit=1');
         const prescriptionsData = await prescriptionsRes.json();
         if (prescriptionsData.success) {
@@ -114,7 +114,6 @@ export default function AdminSidebar({
     }
 
     fetchCounts();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchCounts, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -131,8 +130,8 @@ export default function AdminSidebar({
   });
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push('/auth/signin');
+    await signOut();
+    router.push('/');
   };
 
   const toggleExpand = (href: string) => {
@@ -255,15 +254,15 @@ export default function AdminSidebar({
               <div className="flex items-center gap-3 mb-3 p-2 rounded-lg bg-white/5">
                 <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
                   <span className="text-white text-sm font-semibold">
-                    {session?.user?.name?.charAt(0) || 'A'}
+                    {user?.fullName?.charAt(0) || 'A'}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">
-                    {session?.user?.name || 'Admin User'}
+                    {user?.fullName || 'Admin User'}
                   </p>
                   <p className="text-xs text-gray-400 truncate">
-                    {session?.user?.email || 'admin@mediora.com'}
+                    {user?.primaryEmailAddress?.emailAddress || 'admin@mediora.com'}
                   </p>
                 </div>
               </div>
@@ -325,16 +324,16 @@ export default function AdminSidebar({
           `}>
             <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
               <span className="text-white text-sm font-semibold">
-                {session?.user?.name?.charAt(0) || 'A'}
+                {user?.fullName?.charAt(0) || 'A'}
               </span>
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {session?.user?.name || 'Admin User'}
+                  {user?.fullName || 'Admin User'}
                 </p>
                 <p className="text-xs text-gray-400 truncate">
-                  {session?.user?.email || 'admin@mediora.com'}
+                  {user?.primaryEmailAddress?.emailAddress || 'admin@mediora.com'}
                 </p>
               </div>
             )}
