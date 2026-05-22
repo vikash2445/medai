@@ -998,7 +998,8 @@
     }
   }
 
-  /* Desktop (default) */
+ /* ================= HOME STEPS GRID (Fully Responsive) ================= */
+
 .home-steps-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1015,21 +1016,50 @@
   align-items: flex-start;
   border: 1px solid #eee;
   box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  transition: all 0.2s ease;
 }
 
-/* Tablet (768px to 1024px) */
-@media (max-width: 1024px) and (min-width: 769px) {
+.home-step-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+.home-step-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.home-step-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 3px;
+  color: var(--ink);
+}
+
+.home-step-desc {
+  font-size: 0.72rem;
+  color: #777;
+  line-height: 1.4;
+}
+
+/* Tablet (769px to 1024px) - 2 columns */
+@media (min-width: 769px) and (max-width: 1024px) {
   .home-steps-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
+  
+  .home-step-card {
+    padding: 16px 14px;
+  }
 }
 
-/* Mobile (up to 768px) */
+/* Mobile (481px to 768px) - 2 columns */
 @media (max-width: 768px) {
   .home-steps-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
+    margin-bottom: 18px;
   }
   
   .home-step-card {
@@ -1042,31 +1072,32 @@
   }
   
   .home-step-title {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
   
   .home-step-desc {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
   }
 }
 
-/* Small Mobile (up to 480px) */
+/* Small Mobile (up to 480px) - 1 column */
 @media (max-width: 480px) {
   .home-steps-grid {
     grid-template-columns: 1fr;
     gap: 10px;
+    margin-bottom: 16px;
   }
   
   .home-step-card {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 16px;
+    padding: 16px 12px;
   }
   
   .home-step-icon {
-    font-size: 2rem;
-    margin-bottom: 8px;
+    font-size: 1.8rem;
+    margin-bottom: 6px;
   }
   
   .home-step-title {
@@ -1074,6 +1105,6 @@
   }
   
   .home-step-desc {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
   }
 }
