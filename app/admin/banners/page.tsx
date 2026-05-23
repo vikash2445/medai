@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@lib/supabase-admin'
-// Remove this line: import { Banner } from '@/types'
 import {
   Button, Badge, Card, Modal, Input, Select, Toggle,
   PageHeader, Spinner, EmptyState,
@@ -12,7 +11,7 @@ import { Plus, Image as ImageIcon, Edit, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
 
-// ✅ Add this interface here directly
+// Banner interface
 interface Banner {
   id: string
   title: string
@@ -27,6 +26,7 @@ interface Banner {
 
 const POSITIONS = ['hero', 'offer_1', 'offer_2', 'category_top', 'sidebar', 'popup']
 const EMPTY: Partial<Banner> = { title: '', subtitle: '', image_url: '', link: '', position: 'hero', active: true }
+
 export default function BannersPage() {
   const supabase = createBrowserClient()
   const [banners, setBanners] = useState<Banner[]>([])
@@ -123,12 +123,14 @@ export default function BannersPage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={isEditing ? 'Edit Banner' : 'Add Banner'} width="max-w-xl">
         <div className="space-y-3">
+          {/* Single image upload for banners (using values prop with single item array) */}
           <ImageUpload
-            value={form.image_url ?? null}
-            onChange={url => set('image_url', url ?? '')}
+            values={form.image_url ? [form.image_url] : []}
+            onChange={(urls) => set('image_url', urls && urls.length > 0 ? urls[0] : '')}
             bucket="banners"
             folder="banners"
             label="Banner Image"
+            maxImages={1}
           />
           <Input label="Title *" value={form.title || ''} onChange={e => set('title', e.target.value)} placeholder="e.g. Summer Sale" />
           <Input label="Subtitle" value={form.subtitle || ''} onChange={e => set('subtitle', e.target.value)} placeholder="Optional tagline" />
