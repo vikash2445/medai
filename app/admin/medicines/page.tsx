@@ -227,10 +227,13 @@ export default function MedicinesPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={isEditing ? 'Edit Medicine' : 'Add Medicine'}>
         <div className="space-y-3 max-h-[70vh] overflow-y-auto">
           <ImageUpload
-            value={form.image ?? null}
-            onChange={url => setField('image', url || '')}
-            label="Medicine Image"
-          />
+    values={form.image ? [form.image] : []}
+    onChange={(urls) => setField('image', urls && urls.length > 0 ? urls[0] : '')}
+    bucket="medicines"
+    folder="medicines"
+    label="Medicine Image"
+    maxImages={1}
+  />
           <Input label="Medicine Name *" value={form.name || ''} onChange={e => setField('name', e.target.value)} />
           <Input label="Generic Name" value={form.generic || ''} onChange={e => setField('generic', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
