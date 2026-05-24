@@ -91,9 +91,42 @@ export default function ProductDetailPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Gallery images (use product image or fallback)
-  const galleryImages = product?.image
-    ? [product.image, product.image, product.image]
-    : ['/placeholder.jpg', '/placeholder.jpg', '/placeholder.jpg'];
+  const galleryImages = product?.image && product.image.length > 0
+  ? product.image  // Use the images array from database
+  : product?.image 
+    ? [product.image]  // Fallback to single image as array
+    : ['/placeholder.jpg'];
+
+  // Safely get images array for gallery
+const getDisplayImages = (product: any): string[] => {
+  if (!product) return ['/placeholder.jpg', '/placeholder.jpg', '/placeholder.jpg'];
+  
+  // Check if product has images array
+  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    const images = [...product.images];
+    // Ensure we have at least 3 images for display
+    while (images.length < 3) {
+      images.push(images[0]);
+    }
+    return images;
+  }
+  
+  // Fallback to single image
+  if (product.image && typeof product.image === 'string') {
+    return [product.image, product.image, product.image];
+  }
+  
+  // Default placeholder
+  return ['/placeholder.jpg', '/placeholder.jpg', '/placeholder.jpg'];
+};
+
+// Then in your JSX, use displayImages
+const displayImages = getDisplayImages(product);
+console.log('Display Images:', displayImages);
+console.log('Active Index:', activeImg);
+console.log('Current Image URL:', displayImages[activeImg]);
+
+
 
   // Fetch product from Supabase
   useEffect(() => {
@@ -171,12 +204,13 @@ export default function ProductDetailPage() {
   }, []);
 
   const switchImg = (idx: number) => {
-    setImgFading(true);
-    setTimeout(() => {
-      setActiveImg(idx);
-      setImgFading(false);
-    }, 180);
-  };
+  console.log('Switching to image:', idx);
+  setImgFading(true);
+  setTimeout(() => {
+    setActiveImg(idx);
+    setImgFading(false);
+  }, 180);
+};
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -463,29 +497,55 @@ export default function ProductDetailPage() {
         {/* Product Hero */}
         <section className="pdp-main" ref={heroRef}>
           {/* Gallery */}
-          <div className="pdp-gallery">
-            <div className="pdp-main-img">
-              <img src={galleryImages[activeImg]} alt={product.name} className={imgFading ? 'fading' : ''} />
-              <div className="pdp-badge">{product.is_antibiotic ? 'Prescription' : 'OTC'}</div>
-              <button
-                className="pdp-wish"
-                onClick={() => {
-                  setWishlist(!wishlist);
-                  showToast(wishlist ? 'Removed from Wishlist' : 'Saved to Wishlist ♥');
-                }}
-                style={{ color: wishlist ? '#d64040' : '#9299aa' }}
-              >
-                {wishlist ? '♥' : '♡'}
-              </button>
-            </div>
-            <div className="pdp-thumbs">
-              {galleryImages.map((src, i) => (
-                <div key={i} className={`pdp-thumb${activeImg === i ? ' active' : ''}`} onClick={() => switchImg(i)}>
-                  <img src={src} alt={`Thumbnail ${i + 1}`} />
-                </div>
-              ))}
-            </div>
-          </div>
+<div className="pdp-gallery">
+  <div className="pdp-main-img">
+    {displayImages && displayImages[activeImg] ? (
+      <img 
+        src={displayImages[activeImg]} 
+        alt={product.name} 
+        className={imgFading ? 'fading' : ''}
+        onError={(e) => {
+          console.error('Image load error:', displayImages[activeImg]);
+          e.currentTarget.src = '/placeholder.jpg';
+        }}
+      />
+    ) : (
+      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+        <span className="text-5xl">💊</span>
+      </div>
+    )}
+    <div className="pdp-badge">{product.is_antibiotic ? 'Prescription' : 'OTC'}</div>
+    <button
+      className="pdp-wish"
+      onClick={() => {
+        setWishlist(!wishlist);
+        showToast(wishlist ? 'Removed from Wishlist' : 'Saved to Wishlist ♥');
+      }}
+      style={{ color: wishlist ? '#d64040' : '#9299aa' }}
+    >
+      {wishlist ? '♥' : '♡'}
+    </button>
+  </div>
+  
+  {/* Thumbnails */}
+  <div className="pdp-thumbs">
+    {displayImages.map((src, i) => (
+      <div 
+        key={i} 
+        className={`pdp-thumb${activeImg === i ? ' active' : ''}`} 
+        onClick={() => switchImg(i)}
+      >
+        <img 
+          src={src} 
+          alt={`Thumbnail ${i + 1}`}
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder.jpg';
+          }}
+        />
+      </div>
+    ))}
+  </div>
+</div>
 
           {/* Info Panel */}
           <div className="pdp-info">
